@@ -79,7 +79,7 @@ contract('JobRegistry', (accounts) => {
     await this.stakeManager.deposit(web3.utils.toBN('100'), { from: worker });
     const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('100'), { from: client });
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
-    await time.increase(5);
+    await time.increase(10);
     await expectRevert.unspecified(
       this.jobRegistry.commitJob(jobId, web3.utils.randomHex(32), { from: worker })
     );
@@ -99,5 +99,171 @@ contract('JobRegistry', (accounts) => {
       this.jobRegistry.resolveDispute(jobId, true, 1001, 0, { from: deployer }),
       'JobRegistry: slash bounds'
     );
+  });
+
+  it('validates configuration inputs', async function () {
+    await expectRevert(
+      this.jobRegistry.setModules(
+        {
+          identity: constants.ZERO_ADDRESS,
+          staking: this.stakeManager.address,
+          validation: this.validation.address,
+          dispute: this.dispute.address,
+          reputation: this.reputation.address,
+          feePool: this.feePool.address
+        },
+        { from: deployer }
+      ),
+      'JobRegistry: identity'
+    );
+
+    await expectRevert(
+      this.jobRegistry.setModules(
+        {
+          identity: this.identity.address,
+          staking: constants.ZERO_ADDRESS,
+          validation: this.validation.address,
+          dispute: this.dispute.address,
+          reputation: this.reputation.address,
+          feePool: this.feePool.address
+        },
+        { from: deployer }
+      ),
+      'JobRegistry: staking'
+    );
+
+    await expectRevert(
+      this.jobRegistry.setModules(
+        {
+          identity: this.identity.address,
+          staking: this.stakeManager.address,
+          validation: this.validation.address,
+          dispute: this.dispute.address,
+          reputation: this.reputation.address,
+          feePool: constants.ZERO_ADDRESS
+        },
+        { from: deployer }
+      ),
+      'JobRegistry: feePool'
+    );
+
+    await expectRevert(this.jobRegistry.setTimings(0, 1, 1, { from: deployer }), 'JobRegistry: timings');
+    await expectRevert(
+      this.jobRegistry.setThresholds(6000, 0, 11, 250, 2000, { from: deployer }),
+      'JobRegistry: quorum'
+    );
+    await expectRevert(
+      this.jobRegistry.setThresholds(6000, 1, 11, 20000, 2000, { from: deployer }),
+      'JobRegistry: fee bps'
+    );
+    await expectRevert(
+      this.jobRegistry.setThresholds(6000, 1, 11, 250, 20000, { from: deployer }),
+      'JobRegistry: slash bps'
+    );
+  });
+
+  it('validates lifecycle error paths', async function () {
+    await expectRevert(this.jobRegistry.createJob('0', { from: client }), 'JobRegistry: stake amount');
+
+    await this.jobRegistry.setTimings(2, 2, 5, { from: deployer });
+    await this.stakeManager.deposit('200', { from: worker });
+    const { logs } = await this.jobRegistry.createJob('200', { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    await expectRevert.unspecified(
+      this.jobRegistry.commitJob(jobId, hash, { from: worker })
+    );
+
+    await expectRevert(
+      this.jobRegistry.revealJob(jobId, secret, { from: stranger }),
+      'JobRegistry: not worker'
+    );
+
+    await expectRevert(
+      this.jobRegistry.revealJob(jobId, web3.utils.randomHex(32), { from: worker }),
+      'JobRegistry: commit mismatch'
+    );
+
+    await time.increase(5);
+    await expectRevert.unspecified(
+      this.jobRegistry.revealJob(jobId, secret, { from: worker })
+    );
+  });
+
+  it('handles finalize and dispute windows across branches', async function () {
+    await this.jobRegistry.setTimings(2, 2, 2, { from: deployer });
+    await this.jobRegistry.setThresholds(6000, 1, 11, 0, 5000, { from: deployer });
+    await this.stakeManager.deposit('500', { from: worker });
+    const { logs } = await this.jobRegistry.createJob('500', { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+
+    await expectRevert.unspecified(
+      this.jobRegistry.finalizeJob(jobId, true, { from: stranger })
+    );
+
+    const finalizeZeroFee = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
+    expectEvent(finalizeZeroFee, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
+
+    // recreate job for dispute path
+    const second = await this.jobRegistry.createJob('400', { from: client });
+    const disputedJobId = second.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const disputeSecret = web3.utils.randomHex(32);
+    const disputeHash = web3.utils.soliditySha3({ type: 'bytes32', value: disputeSecret });
+    await this.jobRegistry.commitJob(disputedJobId, disputeHash, { from: worker });
+    await this.jobRegistry.revealJob(disputedJobId, disputeSecret, { from: worker });
+    const disputedJob = await this.jobRegistry.jobs(disputedJobId);
+    await time.increaseTo(disputedJob.disputeDeadline.toNumber() + 1);
+    await expectRevert.unspecified(this.jobRegistry.raiseDispute(disputedJobId, { from: client }));
+  });
+
+  it('prevents finalize from invalid states', async function () {
+    const { logs } = await this.jobRegistry.createJob('200', { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: deployer }));
+
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.stakeManager.deposit('200', { from: worker });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: deployer }));
+  });
+
+  it('resolves disputes in both slash and release modes', async function () {
+    await this.jobRegistry.setTimings(2, 2, 10, { from: deployer });
+    await this.jobRegistry.setThresholds(6000, 1, 11, 250, 5000, { from: deployer });
+    await this.stakeManager.deposit('600', { from: worker });
+    const { logs } = await this.jobRegistry.createJob('600', { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+    await this.jobRegistry.raiseDispute(jobId, { from: client });
+
+    const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, 300, -5, { from: deployer });
+    expectEvent(slashReceipt, 'DisputeResolved', { slashed: true, slashAmount: web3.utils.toBN(300) });
+
+    await this.stakeManager.deposit('400', { from: worker });
+    const next = await this.jobRegistry.createJob('400', { from: client });
+    const jobId2 = next.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret2 = web3.utils.randomHex(32);
+    const hash2 = web3.utils.soliditySha3({ type: 'bytes32', value: secret2 });
+    await this.jobRegistry.commitJob(jobId2, hash2, { from: worker });
+    await this.jobRegistry.revealJob(jobId2, secret2, { from: worker });
+    await this.jobRegistry.raiseDispute(jobId2, { from: client });
+
+    const releaseReceipt = await this.jobRegistry.resolveDispute(jobId2, false, 0, 7, { from: deployer });
+    expectEvent(releaseReceipt, 'DisputeResolved', { slashed: false, slashAmount: web3.utils.toBN(0) });
+    assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
   });
 });
