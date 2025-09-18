@@ -41,6 +41,9 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Truffle build artifacts
+build/
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
@@ -52,6 +55,11 @@ web_modules/
 
 # Optional eslint cache
 .eslintcache
+# Solidity coverage outputs
+coverage.json
+
+# Exported deployment artifacts
+artifacts-public/
 
 # Optional stylelint cache
 .stylelintcache
