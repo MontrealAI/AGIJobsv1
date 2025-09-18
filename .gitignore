@@ -60,6 +60,8 @@ coverage.json
 
 # Exported deployment artifacts
 artifacts-public/
+artifacts/
+cache/
 
 # Optional stylelint cache
 .stylelintcache
