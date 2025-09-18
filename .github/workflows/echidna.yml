@@ -1,0 +1,24 @@
+name: echidna-smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install Echidna
+        run: |
+          sudo add-apt-repository ppa:ethereum/ethereum -y
+          sudo apt-get update
+          sudo apt-get install -y echidna
+      - name: Run Echidna smoke
+        run: echidna-test ./contracts/core --test-mode assertion --corpus-dir=echidna-corpus --max-steps=500
