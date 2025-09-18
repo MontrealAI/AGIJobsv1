@@ -9,12 +9,12 @@ jobs:
   sbom:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Syft
-        uses: anchore/sbom-action/download-syft@v0.15.3
-      - name: Generate SBOM
-        run: syft dir:. -o json > sbom.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom.json
+        - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        - name: Install Syft
+          uses: anchore/sbom-action/download-syft@c7f031d9249a826a082ea14c79d3b686a51d485a
+        - name: Generate SBOM
+          run: syft dir:. -o json > sbom.json
+        - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          with:
+            name: sbom
+            path: sbom.json

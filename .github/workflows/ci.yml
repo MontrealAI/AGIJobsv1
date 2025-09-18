@@ -10,8 +10,8 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '20'
           cache: npm
@@ -21,7 +21,7 @@ jobs:
       - run: npm run test
       - run: npm run coverage
       - run: npm run export:artifacts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: artifacts-public
           path: artifacts-public
