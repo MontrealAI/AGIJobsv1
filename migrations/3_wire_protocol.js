@@ -28,6 +28,8 @@ module.exports = async function (_deployer, network, accounts) {
 
   await staking.setJobRegistry(jr.address);
   await feePool.setJobRegistry(jr.address);
+  await dispute.setJobRegistry(jr.address);
+  await reputation.setJobRegistry(jr.address);
 
   await jr.setTimings(params.commitWindow, params.revealWindow, params.disputeWindow);
   await jr.setThresholds(

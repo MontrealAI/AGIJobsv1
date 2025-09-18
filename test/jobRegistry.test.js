@@ -50,6 +50,13 @@ contract('JobRegistry', (accounts) => {
     assert.strictEqual(modules.feePool, this.feePool.address);
   });
 
+  it('wires dependent modules back to the registry', async function () {
+    assert.strictEqual(await this.stakeManager.jobRegistry(), this.jobRegistry.address);
+    assert.strictEqual(await this.feePool.jobRegistry(), this.jobRegistry.address);
+    assert.strictEqual(await this.dispute.jobRegistry(), this.jobRegistry.address);
+    assert.strictEqual(await this.reputation.jobRegistry(), this.jobRegistry.address);
+  });
+
   it('runs through a happy path lifecycle', async function () {
     const stakeAmount = web3.utils.toBN('1000');
     await this.stakeManager.deposit(stakeAmount, { from: worker });

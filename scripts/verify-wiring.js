@@ -18,12 +18,24 @@ module.exports = async function (callback) {
       }
     };
 
-    expectEq(modules.identity, (await IdentityRegistry.deployed()).address, 'identity');
-    expectEq(modules.staking, (await StakeManager.deployed()).address, 'staking');
-    expectEq(modules.validation, (await ValidationModule.deployed()).address, 'validation');
-    expectEq(modules.dispute, (await DisputeModule.deployed()).address, 'dispute');
-    expectEq(modules.reputation, (await ReputationEngine.deployed()).address, 'reputation');
-    expectEq(modules.feePool, (await FeePool.deployed()).address, 'feePool');
+    const identity = await IdentityRegistry.deployed();
+    const staking = await StakeManager.deployed();
+    const validation = await ValidationModule.deployed();
+    const dispute = await DisputeModule.deployed();
+    const reputation = await ReputationEngine.deployed();
+    const feePool = await FeePool.deployed();
+
+    expectEq(modules.identity, identity.address, 'identity');
+    expectEq(modules.staking, staking.address, 'staking');
+    expectEq(modules.validation, validation.address, 'validation');
+    expectEq(modules.dispute, dispute.address, 'dispute');
+    expectEq(modules.reputation, reputation.address, 'reputation');
+    expectEq(modules.feePool, feePool.address, 'feePool');
+
+    expectEq(await staking.jobRegistry(), jr.address, 'staking.jobRegistry');
+    expectEq(await feePool.jobRegistry(), jr.address, 'feePool.jobRegistry');
+    expectEq(await dispute.jobRegistry(), jr.address, 'dispute.jobRegistry');
+    expectEq(await reputation.jobRegistry(), jr.address, 'reputation.jobRegistry');
 
     const thresholds = await jr.thresholds();
     if (Number(thresholds.feeBps) !== params.feeBps) {
