@@ -1,0 +1,20 @@
+name: provenance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0.15.3
+      - name: Generate SBOM
+        run: syft dir:. -o json > sbom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json

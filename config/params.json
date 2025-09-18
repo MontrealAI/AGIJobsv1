@@ -1,0 +1,10 @@
+{
+  "commitWindow": 3600,
+  "revealWindow": 3600,
+  "disputeWindow": 86400,
+  "approvalThresholdBps": 6000,
+  "quorumMin": 3,
+  "quorumMax": 11,
+  "feeBps": 250,
+  "slashBpsMax": 2000
+}

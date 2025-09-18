@@ -1,0 +1,8 @@
+# Require review from the protocol security team
+* @MontrealAI/security-team
+
+/contracts/ @MontrealAI/protocol-engineering
+/migrations/ @MontrealAI/protocol-engineering
+/scripts/ @MontrealAI/protocol-engineering
+/test/ @MontrealAI/protocol-testing
+.github/ @MontrealAI/devops

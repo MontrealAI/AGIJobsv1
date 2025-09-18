@@ -1,0 +1,48 @@
+{
+  "name": "agijobsv1",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "fmt": "prettier --write \"**/*.{sol,js,json,md,yml,yaml}\"",
+    "lint:sol": "solhint 'contracts/**/*.sol'",
+    "build": "truffle compile",
+    "test": "TRUFFLE_TEST=true npm run ganache:test",
+    "coverage": "solidity-coverage",
+    "gas": "REPORT_GAS=true truffle test",
+    "migrate:dev": "truffle migrate --reset --network development",
+    "migrate:sepolia": "truffle migrate --reset --network sepolia",
+    "verify:sepolia": "truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network sepolia",
+    "export:artifacts": "node scripts/export-addresses.js",
+    "wire:verify": "truffle exec scripts/verify-wiring.js",
+    "namehash": "node scripts/compute-namehash.js",
+    "prepare": "husky install",
+    "ganache:test": "node scripts/run-tests.js"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.3",
+    "@commitlint/config-conventional": "^19.0.3",
+    "@truffle/hdwallet-provider": "^2.1.14",
+    "dotenv": "^16.4.5",
+    "eth-ens-namehash": "^2.0.8",
+    "eth-gas-reporter": "^0.2.27",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.3.3",
+    "solhint": "^3.6.2",
+    "solidity-coverage": "^0.8.7",
+    "truffle": "^5.11.5",
+    "truffle-plugin-verify": "^0.6.0",
+    "@openzeppelin/test-helpers": "^0.5.16",
+    "ganache": "^7.9.2"
+  },
+  "lint-staged": {
+    "*.{js,json,md,yml,yaml}": [
+      "prettier --write"
+    ],
+    "contracts/**/*.sol": [
+      "prettier --write",
+      "solhint"
+    ]
+  }
+}
