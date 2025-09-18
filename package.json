@@ -7,7 +7,7 @@
     "fmt": "prettier --write \"**/*.{sol,js,json,md,yml,yaml}\"",
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "build": "truffle compile",
-    "test": "TRUFFLE_TEST=true npm run ganache:test",
+    "test": "node scripts/run-tests.js",
     "coverage": "npm run coverage:run && npm run coverage:check",
     "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
     "coverage:check": "node scripts/check-coverage.js",
@@ -18,8 +18,7 @@
     "export:artifacts": "truffle exec scripts/export-addresses.js",
     "wire:verify": "truffle exec scripts/verify-wiring.js",
     "namehash": "node scripts/compute-namehash.js",
-    "prepare": "husky install",
-    "ganache:test": "node scripts/run-tests.js"
+    "prepare": "husky install"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.3",
