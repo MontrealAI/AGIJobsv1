@@ -8,7 +8,9 @@
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "build": "truffle compile",
     "test": "TRUFFLE_TEST=true npm run ganache:test",
-    "coverage": "solidity-coverage",
+    "coverage": "npm run coverage:run && npm run coverage:check",
+    "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
+    "coverage:check": "node scripts/check-coverage.js",
     "gas": "REPORT_GAS=true truffle test",
     "migrate:dev": "truffle migrate --reset --network development",
     "migrate:sepolia": "truffle migrate --reset --network sepolia",
@@ -30,11 +32,13 @@
     "lint-staged": "^15.2.0",
     "prettier": "^3.3.3",
     "solhint": "^3.6.2",
-    "solidity-coverage": "^0.8.7",
+    "solidity-coverage": "^0.8.16",
     "truffle": "^5.11.5",
     "truffle-plugin-verify": "^0.6.0",
     "@openzeppelin/test-helpers": "^0.5.16",
-    "ganache": "^7.9.2"
+    "ganache": "^7.9.2",
+    "hardhat": "^2.17.2",
+    "@nomiclabs/hardhat-truffle5": "^2.1.0"
   },
   "lint-staged": {
     "*.{js,json,md,yml,yaml}": [
