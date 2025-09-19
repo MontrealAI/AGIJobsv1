@@ -1,5 +1,52 @@
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
+
+function resolveTruffleBinary() {
+  const binName = process.platform === 'win32' ? 'truffle.cmd' : 'truffle';
+  const localBin = path.join(__dirname, '..', 'node_modules', '.bin', binName);
+  if (fs.existsSync(localBin)) {
+    return { command: localBin, args: [] };
+  }
+
+  return { command: 'npx', args: ['truffle'] };
+}
+
+function hasArtifacts(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    return false;
+  }
+
+  return fs.readdirSync(dirPath).some((file) => file.endsWith('.json'));
+}
+
+function compileArtifacts(buildDir) {
+  const { command, args } = resolveTruffleBinary();
+  const compileArgs = args.concat(['compile']);
+  const display = [command, ...compileArgs].join(' ');
+  console.log(`Truffle artifacts missing at ${buildDir}; running '${display}'...`);
+
+  const result = spawnSync(command, compileArgs, { stdio: 'inherit', env: process.env });
+  if (result.status !== 0) {
+    throw new Error(`Failed to compile contracts for ABI export (exit code ${result.status}).`);
+  }
+
+  if (!hasArtifacts(buildDir)) {
+    throw new Error(`Truffle compile completed but artifacts still missing at ${buildDir}.`);
+  }
+}
+
+function ensureArtifacts(buildDir) {
+  if (hasArtifacts(buildDir)) {
+    return;
+  }
+
+  if (process.env.EXPORT_ABIS_SKIP_COMPILE === 'true') {
+    throw new Error(`Truffle artifacts not found at ${buildDir}. Run 'npm run build' first.`);
+  }
+
+  compileArtifacts(buildDir);
+}
 
 function resolveBuildDir(customDir) {
   if (customDir) {
@@ -66,9 +113,7 @@ function exportAbis({ buildDir: customBuildDir, outputDir: customOutputDir } = {
   const buildDir = resolveBuildDir(customBuildDir);
   const outputDir = resolveOutputDir(customOutputDir);
 
-  if (!fs.existsSync(buildDir)) {
-    throw new Error(`Truffle artifacts not found at ${buildDir}. Run 'npm run build' first.`);
-  }
+  ensureArtifacts(buildDir);
 
   ensureDirectory(path.dirname(outputDir));
   ensureDirectory(outputDir);
