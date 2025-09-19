@@ -32,6 +32,11 @@ contract('StakeManager', (accounts) => {
     const receipt = await this.manager.setJobRegistry(registry, { from: owner });
     expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.manager.jobRegistry(), registry);
+
+    await expectRevert(
+      this.manager.setJobRegistry(other, { from: owner }),
+      'StakeManager: registry already set'
+    );
   });
 
   it('handles deposits and withdrawals with proper checks', async function () {
