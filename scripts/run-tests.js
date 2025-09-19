@@ -4,13 +4,13 @@ const path = require('path');
 async function run() {
   const ganache = spawn(
     path.join('node_modules', '.bin', 'ganache'),
-    ['--chain.networkId', '5777', '--wallet.totalAccounts', '10'],
+    ['--chain.networkId', '5777', '--wallet.totalAccounts', '10', '--logging.quiet'],
     { stdio: ['ignore', 'inherit', 'inherit'] }
   );
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
-  const truffle = spawn('npx', ['truffle', 'test', '--show-events'], { stdio: 'inherit' });
+  const truffle = spawn('npx', ['truffle', 'test'], { stdio: 'inherit' });
 
   truffle.on('exit', (code) => {
     ganache.kill('SIGINT');
