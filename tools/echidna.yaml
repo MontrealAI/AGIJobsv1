@@ -1,2 +1,5 @@
 testMode: assertion
 seed: 1
+testLimit: 500
+contract: EchidnaJobRegistryInvariants
+corpusDir: echidna-corpus
