@@ -2,6 +2,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 async function run() {
+  const network = process.env.NETWORK || 'development';
+
   const ganache = spawn(path.join('node_modules', '.bin', 'ganache'), [
     '--chain.networkId',
     '5777',
@@ -16,7 +18,7 @@ async function run() {
   await wait(3000);
 
   await new Promise((resolve, reject) => {
-    const migrate = spawn('npx', ['truffle', 'migrate', '--reset', '--network', 'development'], {
+    const migrate = spawn('npx', ['truffle', 'migrate', '--reset', '--network', network], {
       stdio: 'inherit',
       env: { ...process.env, TRUFFLE_TEST: 'true' },
     });
@@ -30,9 +32,9 @@ async function run() {
   });
 
   await new Promise((resolve, reject) => {
-    const exec = spawn('npx', ['truffle', 'exec', 'scripts/export-addresses.js', '--network', 'development'], {
+    const exec = spawn('npx', ['truffle', 'exec', 'scripts/export-addresses.js', '--network', network], {
       stdio: 'inherit',
-      env: { ...process.env, NETWORK: 'development' },
+      env: { ...process.env, NETWORK: network },
     });
     exec.on('exit', (code) => {
       if (code === 0) {
