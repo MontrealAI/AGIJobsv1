@@ -1,5 +1,4 @@
 const { spawn } = require('child_process');
-const path = require('path');
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,24 +24,49 @@ async function stopProcess(proc) {
   }
 
   await new Promise((resolve) => {
-    proc.once('exit', resolve);
-    proc.kill('SIGINT');
+    let settled = false;
+    const onExit = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try {
+          process.kill(-proc.pid, 'SIGKILL');
+        } catch (_) {
+          proc.kill('SIGKILL');
+        }
+        resolve();
+      }
+    }, 5000);
+
+    proc.once('exit', () => {
+      clearTimeout(timeout);
+      onExit();
+    });
+
+    try {
+      process.kill(-proc.pid, 'SIGINT');
+    } catch (_) {
+      proc.kill('SIGINT');
+    }
   });
 }
 
 async function run() {
   const network = process.env.NETWORK || 'development';
-  const ganache = spawn(path.join('node_modules', '.bin', 'ganache'), [
-    '--chain.networkId',
-    '5777',
-    '--wallet.totalAccounts',
-    '10',
-  ], {
-    stdio: 'inherit',
-  });
+  const hardhat = spawn(
+    'npx',
+    ['hardhat', 'node', '--hostname', '127.0.0.1', '--port', '8545'],
+    { stdio: 'inherit', detached: true }
+  );
 
   try {
-    await wait(3000);
+    await wait(5000);
 
     await runCommand('npx', ['truffle', 'migrate', '--reset', '--network', network], {
       env: { ...process.env, TRUFFLE_TEST: 'true' },
@@ -59,7 +83,7 @@ async function run() {
     console.error(error);
     process.exitCode = 1;
   } finally {
-    await stopProcess(ganache);
+    await stopProcess(hardhat);
   }
 }
 

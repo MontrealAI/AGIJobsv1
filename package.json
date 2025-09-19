@@ -7,7 +7,7 @@
     "fmt": "prettier --write \"**/*.{sol,js,json,md,yml,yaml}\"",
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "build": "truffle compile",
-    "test": "TRUFFLE_TEST=true npm run ganache:test",
+    "test": "TRUFFLE_TEST=true npm run hardhat:test",
     "coverage": "npx truffle run coverage && COVERAGE_THRESHOLD=90 npm run coverage:check",
     "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
     "coverage:check": "node scripts/check-coverage.js",
@@ -20,7 +20,7 @@
     "wire:verify": "truffle exec scripts/verify-wiring.js --network ${NETWORK:-development}",
     "namehash": "node scripts/compute-namehash.js",
     "prepare": "husky install",
-    "ganache:test": "node scripts/run-tests.js"
+    "hardhat:test": "node scripts/run-tests.js"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.3",
@@ -38,7 +38,6 @@
     "truffle-plugin-verify": "^0.6.0",
     "truffle-hardhat-coverage": "file:tools/truffle-hardhat-coverage",
     "@openzeppelin/test-helpers": "^0.5.16",
-    "ganache": "^7.9.2",
     "hardhat": "^2.17.2",
     "@nomiclabs/hardhat-truffle5": "^2.1.0"
   },
