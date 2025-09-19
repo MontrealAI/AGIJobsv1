@@ -43,7 +43,7 @@ contract('StakeManager', (accounts) => {
     await expectRevert(this.manager.deposit('0', { from: staker }), 'StakeManager: amount');
     await expectRevert(
       this.manager.deposit('1000', { from: staker }),
-      'MockERC20: insufficient allowance'
+      'ERC20: insufficient allowance'
     );
 
     await this.token.approve(this.manager.address, '1000', { from: staker });
