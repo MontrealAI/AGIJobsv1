@@ -15,7 +15,7 @@
     "migrate:dev": "truffle migrate --reset --network development",
     "migrate:sepolia": "truffle migrate --reset --network sepolia",
     "verify:sepolia": "truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network sepolia",
-    "export:artifacts": "truffle exec scripts/export-addresses.js",
+    "export:artifacts": "node scripts/export-artifacts-runner.js",
     "wire:verify": "truffle exec scripts/verify-wiring.js",
     "namehash": "node scripts/compute-namehash.js",
     "prepare": "husky install",
