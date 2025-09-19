@@ -7,14 +7,16 @@ const DisputeModule = artifacts.require('DisputeModule');
 const ReputationEngine = artifacts.require('ReputationEngine');
 const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
+const MockERC20 = artifacts.require('MockERC20');
 
 contract('JobRegistry', (accounts) => {
-  const [deployer, worker, client, stranger] = accounts;
+  const [deployer, worker, client, stranger, burn] = accounts;
 
   beforeEach(async function () {
+    this.token = await MockERC20.new('Stake Token', 'STK', 18, { from: deployer });
     this.identity = await IdentityRegistry.new({ from: deployer });
-    this.stakeManager = await StakeManager.new(constants.ZERO_ADDRESS, 18, { from: deployer });
-    this.feePool = await FeePool.new(constants.ZERO_ADDRESS, constants.ZERO_ADDRESS, { from: deployer });
+    this.stakeManager = await StakeManager.new(this.token.address, 18, { from: deployer });
+    this.feePool = await FeePool.new(this.token.address, burn, { from: deployer });
     this.validation = await ValidationModule.new({ from: deployer });
     this.dispute = await DisputeModule.new({ from: deployer });
     this.reputation = await ReputationEngine.new({ from: deployer });
@@ -33,11 +35,16 @@ contract('JobRegistry', (accounts) => {
       { from: deployer }
     );
     await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
+    await this.stakeManager.setFeePool(this.feePool.address, { from: deployer });
     await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });
+    await this.feePool.setStakeManager(this.stakeManager.address, { from: deployer });
     await this.dispute.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.reputation.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
     await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
+
+    await this.token.mint(worker, web3.utils.toBN('5000'), { from: deployer });
+    await this.token.approve(this.stakeManager.address, web3.utils.toBN('5000'), { from: worker });
   });
 
   it('stores module addresses correctly', async function () {
@@ -79,6 +86,9 @@ contract('JobRegistry', (accounts) => {
 
     const locked = await this.stakeManager.lockedAmounts(worker);
     assert.isTrue(locked.isZero(), 'stake should be unlocked');
+    const feeAmount = stakeAmount.muln(250).divn(10000);
+    assert.strictEqual((await this.token.balanceOf(burn)).toString(), feeAmount.toString());
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), feeAmount.toString());
   });
 
   it('enforces commit window', async function () {

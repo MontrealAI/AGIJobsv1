@@ -3,7 +3,6 @@ pragma solidity 0.8.20;
 
 import {Ownable} from "../libs/Ownable.sol";
 import {StakeManager} from "./StakeManager.sol";
-import {FeePool} from "./FeePool.sol";
 import {DisputeModule} from "./DisputeModule.sol";
 import {ReputationEngine} from "./ReputationEngine.sol";
 
@@ -157,13 +156,9 @@ contract JobRegistry is Ownable {
         if (feeAmount > job.stakeAmount) revert FeeBounds();
 
         StakeManager staking = StakeManager(_modules.staking);
-        FeePool feePool = FeePool(_modules.feePool);
 
         uint256 releaseAmount = job.stakeAmount - feeAmount;
         staking.settleStake(job.worker, releaseAmount, feeAmount);
-        if (feeAmount > 0) {
-            feePool.recordFee(feeAmount);
-        }
 
         job.state = JobState.Finalized;
         emit JobFinalized(jobId, success, feeAmount);
