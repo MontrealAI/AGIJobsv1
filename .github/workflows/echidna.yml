@@ -17,8 +17,35 @@ jobs:
       - run: npm ci
       - name: Install Echidna
         run: |
+          set -euxo pipefail
           sudo add-apt-repository ppa:ethereum/ethereum -y
           sudo apt-get update
-          sudo apt-get install -y echidna-test
+          if sudo apt-get install -y echidna-test; then
+            exit 0
+          fi
+
+          echo "apt package unavailable, downloading latest release"
+          arch=$(dpkg --print-architecture)
+          case "$arch" in
+            amd64) asset_arch=x86_64-linux ;;
+            arm64) asset_arch=aarch64-linux ;;
+            *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
+          esac
+
+          tmpdir=$(mktemp -d)
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          asset_url=$(curl -fsSL https://api.github.com/repos/crytic/echidna/releases/latest \
+            | grep browser_download_url \
+            | grep "$asset_arch" \
+            | head -n 1 \
+            | cut -d '"' -f 4)
+          if [ -z "$asset_url" ]; then
+            echo "Unable to locate Echidna release asset for $asset_arch" >&2
+            exit 1
+          fi
+          curl -fsSL "$asset_url" -o "$tmpdir/echidna.tar.gz"
+          tar -xzf "$tmpdir/echidna.tar.gz" -C "$tmpdir"
+          sudo install -m 0755 "$tmpdir/echidna" /usr/local/bin/echidna-test
       - name: Run Echidna smoke
         run: echidna-test ./contracts/core --test-mode assertion --corpus-dir=echidna-corpus --max-steps=500
