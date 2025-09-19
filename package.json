@@ -17,7 +17,7 @@
     "verify:sepolia": "truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network sepolia",
     "export:abis": "node scripts/export-abis.js",
     "export:artifacts": "node scripts/export-artifacts-runner.js",
-    "wire:verify": "truffle exec scripts/verify-wiring.js",
+    "wire:verify": "truffle exec scripts/verify-wiring.js --network ${NETWORK:-development}",
     "namehash": "node scripts/compute-namehash.js",
     "prepare": "husky install",
     "ganache:test": "node scripts/run-tests.js"

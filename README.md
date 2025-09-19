@@ -37,6 +37,20 @@ npm run export:artifacts
 
 `npm run export:artifacts` performs a deterministic local migration, exports network-specific addresses, and generates sanitized ABI bundles under `artifacts-public/`. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
 
+## Verify wiring
+
+Run the wiring checker to confirm deployed contract addresses match the expected configuration:
+
+```bash
+npm run wire:verify
+```
+
+The script defaults to the local development network. Override it by setting `NETWORK` before invoking the command, for example:
+
+```bash
+NETWORK=sepolia npm run wire:verify
+```
+
 ### GitHub Actions secrets
 
 Deployments from CI require the following repository secrets so migrations can transfer ownership correctly:
