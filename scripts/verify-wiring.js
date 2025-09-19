@@ -33,7 +33,9 @@ module.exports = async function (callback) {
     expectEq(modules.feePool, feePool.address, 'feePool');
 
     expectEq(await staking.jobRegistry(), jr.address, 'staking.jobRegistry');
+    expectEq(await staking.feePool(), feePool.address, 'staking.feePool');
     expectEq(await feePool.jobRegistry(), jr.address, 'feePool.jobRegistry');
+    expectEq(await feePool.staking(), staking.address, 'feePool.staking');
     expectEq(await dispute.jobRegistry(), jr.address, 'dispute.jobRegistry');
     expectEq(await reputation.jobRegistry(), jr.address, 'reputation.jobRegistry');
 
