@@ -25,7 +25,7 @@ contract('ReputationEngine', (accounts) => {
 
     await expectRevert(
       this.engine.setJobRegistry(worker, { from: owner }),
-      'ReputationEngine: registry already set'
+      'ReputationEngine: registry set'
     );
   });
 
