@@ -12,6 +12,7 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 import {JobRegistry} from "./JobRegistry.sol";
 import {WorkerActor} from "./testing/WorkerActor.sol";
 import {ClientActor} from "./testing/ClientActor.sol";
+import {MockERC20} from "../testing/MockERC20.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 
 /* solhint-disable func-name-mixedcase */
@@ -20,6 +21,7 @@ import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     uint256 private constant MAX_STAKE = 1e18;
 
+    MockERC20 private immutable stakeToken;
     StakeManager private immutable stakeManager;
     FeePool private immutable feePool;
     ValidationModule private immutable validationModule;
@@ -39,8 +41,9 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     uint256 private expectedFees;
 
     constructor() {
-        stakeManager = new StakeManager(address(0xBEEF), 18);
-        feePool = new FeePool(address(0xBEEF), address(0xDEAD));
+        stakeToken = new MockERC20("Stake Token", "STK", 18);
+        stakeManager = new StakeManager(address(stakeToken), stakeToken.decimals());
+        feePool = new FeePool(address(stakeToken), address(0xDEAD));
         validationModule = new ValidationModule();
         disputeModule = new DisputeModule();
         reputationEngine = new ReputationEngine();
@@ -66,9 +69,16 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         disputeModule.setJobRegistry(address(jobRegistry));
         reputationEngine.setJobRegistry(address(jobRegistry));
 
-        workers[0] = new WorkerActor(stakeManager, jobRegistry);
-        workers[1] = new WorkerActor(stakeManager, jobRegistry);
+        workers[0] = new WorkerActor(stakeManager, jobRegistry, stakeToken);
+        workers[1] = new WorkerActor(stakeManager, jobRegistry, stakeToken);
         client = new ClientActor(jobRegistry);
+
+        uint256 initialStakeBalance = MAX_STAKE * 100;
+        stakeToken.mint(address(workers[0]), initialStakeBalance);
+        stakeToken.mint(address(workers[1]), initialStakeBalance);
+
+        workers[0].approveStakeManager(type(uint256).max);
+        workers[1].approveStakeManager(type(uint256).max);
     }
 
     /// @notice Deposits a fuzzed amount of stake for a selected worker actor.
