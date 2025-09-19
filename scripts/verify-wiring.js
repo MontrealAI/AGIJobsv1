@@ -23,6 +23,9 @@ module.exports = async function (callback) {
       }
     };
 
+    const owner = await jobRegistry.owner();
+    expectEq(owner, owner, 'jobRegistry.owner');
+
     const identity = await IdentityRegistry.deployed();
     const staking = await StakeManager.deployed();
     const validation = await ValidationModule.deployed();
@@ -40,6 +43,20 @@ module.exports = async function (callback) {
     ].forEach(([label, actual, expected]) => {
       expectEq(actual, expected, label);
     });
+
+    await Promise.all(
+      [
+        ['identity.owner', identity.owner()],
+        ['staking.owner', staking.owner()],
+        ['validation.owner', validation.owner()],
+        ['dispute.owner', dispute.owner()],
+        ['reputation.owner', reputation.owner()],
+        ['feePool.owner', feePool.owner()],
+      ].map(async ([label, valuePromise]) => {
+        const value = await valuePromise;
+        expectEq(value, owner, label);
+      })
+    );
 
     expectEq(await staking.jobRegistry(), jobRegistry.address, 'staking.jobRegistry');
     expectEq(await feePool.jobRegistry(), jobRegistry.address, 'feePool.jobRegistry');
