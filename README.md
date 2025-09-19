@@ -26,6 +26,32 @@ Edit configuration files under `config/` to match the deployment environment:
 - `config/ens.json` — ENS registry and subdomain roots (run `npm run namehash`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
 
+## Mainnet deployment profile
+
+The repository is pre-configured for Ethereum mainnet and the production $AGIALPHA stake token. Confirm the following addresses
+before migrating:
+
+| Component | Value |
+| --- | --- |
+| Stake token (`$AGIALPHA`) | `0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA` |
+| Token decimals | `18` |
+| Stake burn address | `0x000000000000000000000000000000000000dEaD` |
+| ENS registry | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e` |
+| Agent ENS root | `agent.agi.eth` (`0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d`) |
+| Club ENS root | `club.agi.eth` (`0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16`) |
+
+Operational parameters shipped in `config/params.json` align with the governance-approved mainnet timings:
+
+| Parameter | Value | Notes |
+| --- | --- | --- |
+| `commitWindow` | `604800` seconds | 7 days to collect worker commits. |
+| `revealWindow` | `86400` seconds | 1 day for reveal submissions. |
+| `disputeWindow` | `259200` seconds | 3 days for dispute escalation. |
+| `approvalThresholdBps` | `6000` | 60% reveal approval threshold. |
+| `quorumMin` / `quorumMax` | `3` / `11` | Bounds for validator committee size. |
+| `feeBps` | `250` | 2.5% protocol fee. |
+| `slashBpsMax` | `2000` | Maximum 20% slash per dispute. |
+
 ## Deploy (Sepolia)
 
 ```bash
