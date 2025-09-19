@@ -14,12 +14,19 @@ contract MockERC20 is IERC20 {
     mapping(address => uint256) public override balanceOf;
     mapping(address => mapping(address => uint256)) public override allowance;
 
+    /// @notice Initializes the mock token with metadata values used in tests.
+    /// @param name_ Token name exposed via the ERC20 interface.
+    /// @param symbol_ Token symbol exposed via the ERC20 interface.
+    /// @param decimals_ Number of decimals the token uses.
     constructor(string memory name_, string memory symbol_, uint8 decimals_) {
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
     }
 
+    /// @notice Mints tokens to the desired recipient for testing scenarios.
+    /// @param to Address that will receive the new tokens.
+    /// @param amount Quantity of tokens to mint.
     function mint(address to, uint256 amount) external {
         require(to != address(0), "MockERC20: mint to zero");
         totalSupply += amount;
@@ -27,16 +34,29 @@ contract MockERC20 is IERC20 {
         emit Transfer(address(0), to, amount);
     }
 
+    /// @notice Transfers tokens from the caller to a destination address.
+    /// @param to Recipient of the transferred tokens.
+    /// @param amount Quantity of tokens to send.
+    /// @return True when the transfer succeeds.
     function transfer(address to, uint256 amount) external override returns (bool) {
         _transfer(msg.sender, to, amount);
         return true;
     }
 
+    /// @notice Approves a spender to transfer tokens from the caller.
+    /// @param spender Address allowed to transfer tokens on behalf of the caller.
+    /// @param amount Maximum amount the spender can transfer.
+    /// @return True when the approval succeeds.
     function approve(address spender, uint256 amount) external override returns (bool) {
         _approve(msg.sender, spender, amount);
         return true;
     }
 
+    /// @notice Transfers tokens from a source address to a destination using allowance.
+    /// @param from Account that currently holds the tokens.
+    /// @param to Recipient of the transferred tokens.
+    /// @param amount Quantity of tokens to send.
+    /// @return True when the transfer succeeds.
     function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
         if (msg.sender != from) {
             uint256 currentAllowance = allowance[from][msg.sender];

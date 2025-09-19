@@ -14,7 +14,7 @@ library SafeERC20 {
     }
 
     function _call(IERC20 token, bytes memory data) private {
-        // solhint-disable-next-line avoid-low-level-calls
+        /* solhint-disable-next-line avoid-low-level-calls */
         // slither-disable-next-line low-level-calls
         (bool success, bytes memory returndata) = address(token).call(data);
         require(success, "SafeERC20: call failed");

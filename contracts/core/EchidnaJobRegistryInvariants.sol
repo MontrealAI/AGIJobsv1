@@ -69,12 +69,18 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         client = new ClientActor(jobRegistry);
     }
 
+    /// @notice Deposits a fuzzed amount of stake for a selected worker actor.
+    /// @param workerIndex Index of the worker actor to interact with.
+    /// @param rawAmount Seed amount used to derive the deposited stake value.
     function fuzzDeposit(uint8 workerIndex, uint128 rawAmount) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 amount = (uint256(rawAmount) % MAX_STAKE) + 1;
         worker.deposit(amount);
     }
 
+    /// @notice Withdraws a fuzzed amount of available stake for a selected worker.
+    /// @param workerIndex Index of the worker actor to interact with.
+    /// @param rawAmount Seed amount used to derive the withdrawal quantity.
     function fuzzWithdraw(uint8 workerIndex, uint128 rawAmount) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 available = stakeManager.availableStake(address(worker));
@@ -89,6 +95,9 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         worker.withdraw(amount);
     }
 
+    /// @notice Creates a job and locks stake for the selected worker actor.
+    /// @param workerIndex Index of the worker actor that will commit to the job.
+    /// @param rawStake Seed amount used to derive the required stake.
     function fuzzCreateAndCommit(uint8 workerIndex, uint128 rawStake) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 stakeAmount = (uint256(rawStake) % MAX_STAKE) + 1;
@@ -106,6 +115,8 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         worker.commit(jobId, keccak256(abi.encodePacked(secret)));
     }
 
+    /// @notice Reveals the commitment for the provided job identifier.
+    /// @param jobId Identifier of the job being revealed.
     function fuzzReveal(uint256 jobId) public nonReentrant {
         _reveal(jobId);
     }
@@ -128,6 +139,9 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         WorkerActor(workerAddr).reveal(jobId, jobSecrets[jobId]);
     }
 
+    /// @notice Finalizes a job when the lifecycle permits and records expected fees.
+    /// @param jobId Identifier of the job being finalized.
+    /// @param success Indicates whether the job completed successfully.
     function fuzzFinalize(uint256 jobId, bool success) external nonReentrant {
         if (jobCompleted[jobId]) {
             return;
@@ -170,6 +184,11 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         }
     }
 
+    /// @notice Raises and resolves a dispute for the targeted job identifier.
+    /// @param jobId Identifier of the job to dispute and resolve.
+    /// @param slashWorker True to slash the worker during dispute resolution.
+    /// @param rawSlash Seed amount used to derive the slash magnitude.
+    /// @param rawReputation Seed amount used to derive the reputation delta applied.
     function fuzzDisputeAndResolve(
         uint256 jobId,
         bool slashWorker,
@@ -219,6 +238,11 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         }
     }
 
+    /// @notice Updates threshold parameters with fuzzed values to stress invariant checks.
+    /// @param feeBps Raw fee basis points seed.
+    /// @param slashBpsMax Raw slash basis points seed.
+    /// @param quorumMinRaw Raw quorum minimum seed value.
+    /// @param quorumMaxRaw Raw quorum maximum seed value.
     function fuzzUpdateThresholds(
         uint16 feeBps,
         uint16 slashBpsMax,
@@ -239,6 +263,10 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         jobRegistry.setThresholds(thresholds.approvalThresholdBps, newMin, newMax, newFee, newSlash);
     }
 
+    /// @notice Updates timing parameters with fuzzed values to test lifecycle bounds.
+    /// @param commitWindowRaw Seed used to derive the commit window duration.
+    /// @param revealWindowRaw Seed used to derive the reveal window duration.
+    /// @param disputeWindowRaw Seed used to derive the dispute window duration.
     function fuzzUpdateTimings(uint64 commitWindowRaw, uint64 revealWindowRaw, uint64 disputeWindowRaw)
         external
         nonReentrant
@@ -250,20 +278,28 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         jobRegistry.setTimings(commitWindow, revealWindow, disputeWindow);
     }
 
+    /// @notice Ensures the first worker never has more stake locked than deposited.
+    /// @return True if the invariant holds for worker 0.
     function echidna_worker0_stake_conserved() external view returns (bool) {
         address workerAddr = address(workers[0]);
         return stakeManager.totalDeposits(workerAddr) >= stakeManager.lockedAmounts(workerAddr);
     }
 
+    /// @notice Ensures the second worker never has more stake locked than deposited.
+    /// @return True if the invariant holds for worker 1.
     function echidna_worker1_stake_conserved() external view returns (bool) {
         address workerAddr = address(workers[1]);
         return stakeManager.totalDeposits(workerAddr) >= stakeManager.lockedAmounts(workerAddr);
     }
 
+    /// @notice Validates that fee accounting aligns with protocol expectations.
+    /// @return True when the recorded fees match the expected accumulator.
     function echidna_fee_accounting_consistent() external view returns (bool) {
         return feePool.totalFeesRecorded() == expectedFees;
     }
 
+    /// @notice Confirms threshold configuration values remain within valid bounds.
+    /// @return True if quorum and basis point parameters satisfy the invariant.
     function echidna_threshold_bounds_hold() external view returns (bool) {
         JobRegistry.Thresholds memory thresholds = _getThresholds();
         uint256 denominator = jobRegistry.BPS_DENOMINATOR();
@@ -274,6 +310,8 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
             thresholds.slashBpsMax <= denominator;
     }
 
+    /// @notice Checks that lifecycle timing durations remain positive.
+    /// @return True when commit, reveal, and dispute windows are non-zero.
     function echidna_timings_positive() external view returns (bool) {
         JobRegistry.Timings memory timings_ = _getTimings();
         return timings_.commitWindow > 0 && timings_.revealWindow > 0 && timings_.disputeWindow > 0;

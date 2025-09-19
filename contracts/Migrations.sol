@@ -14,6 +14,8 @@ contract Migrations {
         _;
     }
 
+    /// @notice Updates the highest completed migration index.
+    /// @param completed The latest migration sequence number that finished execution.
     function setCompleted(uint256 completed) external restricted {
         lastCompletedMigration = completed;
     }

@@ -16,7 +16,7 @@ contract DisputeModule is Ownable {
     /// @param registry Address of the job registry contract.
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "DisputeModule: registry");
-        require(jobRegistry == address(0), "DisputeModule: registry already set");
+        require(jobRegistry == address(0), "DisputeModule: registry set");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }

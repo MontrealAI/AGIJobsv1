@@ -16,7 +16,7 @@ contract ReputationEngine is Ownable {
     /// @param registry Address of the job registry contract.
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "ReputationEngine: registry");
-        require(jobRegistry == address(0), "ReputationEngine: registry already set");
+        require(jobRegistry == address(0), "ReputationEngine: registry set");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }
