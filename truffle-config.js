@@ -2,12 +2,13 @@ require('dotenv').config();
 const HDWalletProvider = require('@truffle/hdwallet-provider');
 
 const { MNEMONIC, RPC_MAINNET, RPC_SEPOLIA, ETHERSCAN_API_KEY } = process.env;
+const GANACHE_PORT = Number(process.env.GANACHE_PORT || 8545);
 
 module.exports = {
   plugins: ['truffle-plugin-verify', 'truffle-hardhat-coverage'],
   api_keys: { etherscan: ETHERSCAN_API_KEY },
   networks: {
-    development: { host: '127.0.0.1', port: 8545, network_id: '*' },
+    development: { host: '127.0.0.1', port: GANACHE_PORT, network_id: '*' },
     sepolia: {
       provider: () => new HDWalletProvider(MNEMONIC, RPC_SEPOLIA),
       network_id: 11155111,
