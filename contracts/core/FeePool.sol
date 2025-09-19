@@ -7,6 +7,7 @@ import {Ownable} from "../libs/Ownable.sol";
 /// @notice Records protocol fee accrual for accounting transparency.
 contract FeePool is Ownable {
     event FeeRecorded(uint256 amount);
+    event JobRegistryUpdated(address indexed jobRegistry);
 
     address public immutable feeToken;
     address public immutable burnAddress;
@@ -14,6 +15,8 @@ contract FeePool is Ownable {
     address public jobRegistry;
 
     constructor(address token, address burnAddr) {
+        require(token != address(0), "FeePool: token");
+        require(burnAddr != address(0), "FeePool: burn");
         feeToken = token;
         burnAddress = burnAddr;
     }
@@ -21,6 +24,7 @@ contract FeePool is Ownable {
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "FeePool: registry");
         jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
     }
 
     modifier onlyAuthorized() {

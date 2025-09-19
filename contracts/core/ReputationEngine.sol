@@ -7,6 +7,7 @@ import {Ownable} from "../libs/Ownable.sol";
 /// @notice Tracks a simple reputation score per worker.
 contract ReputationEngine is Ownable {
     event ReputationUpdated(address indexed worker, int256 delta, int256 newScore);
+    event JobRegistryUpdated(address indexed jobRegistry);
 
     mapping(address => int256) public reputation;
     address public jobRegistry;
@@ -14,6 +15,7 @@ contract ReputationEngine is Ownable {
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "ReputationEngine: registry");
         jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
     }
 
     modifier onlyRegistry() {

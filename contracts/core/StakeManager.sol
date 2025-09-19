@@ -22,6 +22,7 @@ contract StakeManager is Ownable {
     mapping(address => uint256) public lockedAmounts;
 
     constructor(address token, uint8 decimals_) {
+        require(token != address(0), "StakeManager: token");
         stakeToken = token;
         stakeTokenDecimals = decimals_;
     }

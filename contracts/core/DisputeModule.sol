@@ -8,12 +8,14 @@ import {Ownable} from "../libs/Ownable.sol";
 contract DisputeModule is Ownable {
     event DisputeRaised(uint256 indexed jobId, address indexed raiser);
     event DisputeResolved(uint256 indexed jobId, bool slashWorker);
+    event JobRegistryUpdated(address indexed jobRegistry);
 
     address public jobRegistry;
 
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "DisputeModule: registry");
         jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
     }
 
     modifier onlyRegistry() {
