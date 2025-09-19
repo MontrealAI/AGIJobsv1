@@ -4,7 +4,7 @@ const HDWalletProvider = require('@truffle/hdwallet-provider');
 const { MNEMONIC, RPC_MAINNET, RPC_SEPOLIA, ETHERSCAN_API_KEY } = process.env;
 
 module.exports = {
-  plugins: ['truffle-plugin-verify', 'solidity-coverage'],
+  plugins: ['truffle-plugin-verify', 'truffle-hardhat-coverage'],
   api_keys: { etherscan: ETHERSCAN_API_KEY },
   networks: {
     development: { host: '127.0.0.1', port: 8545, network_id: '*' },
