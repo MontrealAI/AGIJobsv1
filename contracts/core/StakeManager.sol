@@ -46,7 +46,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
     /// @param registry Address of the registry contract that can manage stake locks.
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "StakeManager: zero registry");
-        require(jobRegistry == address(0), "StakeManager: registry already set");
+        require(jobRegistry == address(0), "StakeManager: registry set");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }
