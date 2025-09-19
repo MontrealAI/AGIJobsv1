@@ -7,19 +7,26 @@ const DisputeModule = artifacts.require('DisputeModule');
 const ReputationEngine = artifacts.require('ReputationEngine');
 const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
+const MockERC20 = artifacts.require('MockERC20');
 
 contract('JobRegistry', (accounts) => {
-  const [deployer, worker, client, stranger, feeToken, burnAddress, stakeToken] = accounts;
+  const [deployer, worker, client, stranger, burnAddress] = accounts;
 
   beforeEach(async function () {
+    this.token = await MockERC20.new('Mock Stake', 'MST', 18);
     this.identity = await IdentityRegistry.new({ from: deployer });
-    this.stakeManager = await StakeManager.new(stakeToken, 18, { from: deployer });
-    this.feePool = await FeePool.new(feeToken, burnAddress, { from: deployer });
+    this.stakeManager = await StakeManager.new(this.token.address, 18, { from: deployer });
+    this.feePool = await FeePool.new(this.token.address, burnAddress, { from: deployer });
     this.validation = await ValidationModule.new({ from: deployer });
     this.dispute = await DisputeModule.new({ from: deployer });
     this.reputation = await ReputationEngine.new({ from: deployer });
     this.certificate = await CertificateNFT.new({ from: deployer });
     this.jobRegistry = await JobRegistry.new({ from: deployer });
+
+    await this.token.mint(worker, web3.utils.toBN('1000000'));
+    await this.token.approve(this.stakeManager.address, constants.MAX_UINT256, { from: worker });
+
+    await this.stakeManager.setFeePool(this.feePool.address, { from: deployer });
 
     await this.jobRegistry.setModules(
       {
@@ -33,6 +40,7 @@ contract('JobRegistry', (accounts) => {
       { from: deployer }
     );
     await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
+    await this.feePool.setStakeManager(this.stakeManager.address, { from: deployer });
     await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.dispute.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.reputation.setJobRegistry(this.jobRegistry.address, { from: deployer });
@@ -69,7 +77,10 @@ contract('JobRegistry', (accounts) => {
 
   it('runs through a happy path lifecycle', async function () {
     const stakeAmount = web3.utils.toBN('1000');
+    const workerBalanceBefore = await this.token.balanceOf(worker);
     await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const workerAfterDeposit = await this.token.balanceOf(worker);
+    assert.strictEqual(workerBalanceBefore.sub(workerAfterDeposit).toString(), stakeAmount.toString());
 
     const receiptCreate = await this.jobRegistry.createJob(stakeAmount, { from: client });
     const jobId = receiptCreate.logs.find((log) => log.event === 'JobCreated').args.jobId;
@@ -84,11 +95,22 @@ contract('JobRegistry', (accounts) => {
     const revealReceipt = await this.jobRegistry.revealJob(jobId, commitSecret, { from: worker });
     expectEvent(revealReceipt, 'JobRevealed', { jobId, worker });
 
+    const burnBefore = await this.token.balanceOf(burnAddress);
+    const workerBeforeFinalize = await this.token.balanceOf(worker);
     const finalizeReceipt = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
     expectEvent(finalizeReceipt, 'JobFinalized', { jobId });
 
     const locked = await this.stakeManager.lockedAmounts(worker);
     assert.isTrue(locked.isZero(), 'stake should be unlocked');
+    const feeAmount = finalizeReceipt.logs.find((l) => l.event === 'JobFinalized').args.feeAmount;
+    const workerAfterFinalize = await this.token.balanceOf(worker);
+    const burnAfterFinalize = await this.token.balanceOf(burnAddress);
+    assert.strictEqual(
+      workerAfterFinalize.sub(workerBeforeFinalize).toString(),
+      stakeAmount.sub(feeAmount).toString()
+    );
+    assert.strictEqual(burnAfterFinalize.sub(burnBefore).toString(), feeAmount.toString());
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), feeAmount.toString());
   });
 
   it('finalizes without fees when fee bps is zero', async function () {
@@ -104,6 +126,7 @@ contract('JobRegistry', (accounts) => {
 
     const finalizeReceipt = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
     expectEvent(finalizeReceipt, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), '0');
   });
 
   it('enforces commit window', async function () {
@@ -245,6 +268,7 @@ contract('JobRegistry', (accounts) => {
     expectEvent(finalizeZeroFee, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
 
     // recreate job for dispute path
+    await this.stakeManager.deposit('400', { from: worker });
     const second = await this.jobRegistry.createJob('400', { from: client });
     const disputedJobId = second.logs.find((l) => l.event === 'JobCreated').args.jobId;
     const disputeSecret = web3.utils.randomHex(32);
@@ -282,6 +306,8 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.revealJob(jobId, secret, { from: worker });
     await this.jobRegistry.raiseDispute(jobId, { from: client });
 
+    const burnBeforeSlash = await this.token.balanceOf(burnAddress);
+    const workerBeforeSlash = await this.token.balanceOf(worker);
     const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, 300, -5, {
       from: deployer,
     });
@@ -289,6 +315,11 @@ contract('JobRegistry', (accounts) => {
       slashed: true,
       slashAmount: web3.utils.toBN(300),
     });
+    const burnAfterSlash = await this.token.balanceOf(burnAddress);
+    const workerAfterSlash = await this.token.balanceOf(worker);
+    assert.strictEqual(burnAfterSlash.sub(burnBeforeSlash).toString(), '300');
+    assert.strictEqual(workerAfterSlash.sub(workerBeforeSlash).toString(), '0');
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), '300');
 
     await this.stakeManager.deposit('400', { from: worker });
     const next = await this.jobRegistry.createJob('400', { from: client });
@@ -299,6 +330,8 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.revealJob(jobId2, secret2, { from: worker });
     await this.jobRegistry.raiseDispute(jobId2, { from: client });
 
+    const burnBeforeRelease = await this.token.balanceOf(burnAddress);
+    const workerBeforeRelease = await this.token.balanceOf(worker);
     const releaseReceipt = await this.jobRegistry.resolveDispute(jobId2, false, 0, 7, {
       from: deployer,
     });
@@ -306,6 +339,10 @@ contract('JobRegistry', (accounts) => {
       slashed: false,
       slashAmount: web3.utils.toBN(0),
     });
+    const burnAfterRelease = await this.token.balanceOf(burnAddress);
+    const workerAfterRelease = await this.token.balanceOf(worker);
+    assert.strictEqual(burnAfterRelease.sub(burnBeforeRelease).toString(), '0');
+    assert.strictEqual(workerAfterRelease.sub(workerBeforeRelease).toString(), '0');
     assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
 
     await this.stakeManager.deposit('500', { from: worker });
