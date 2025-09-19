@@ -69,9 +69,31 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     error InvalidState(JobState expected, JobState actual);
     error WindowExpired(string window);
     error FeeBounds();
+    error NotConfigured(bytes32 component);
+
+    bytes32 private constant MODULES_KEY = "modules";
+    bytes32 private constant TIMINGS_KEY = "timings";
+    bytes32 private constant THRESHOLDS_KEY = "thresholds";
+
+    bool private _timingsConfigured;
+    bool private _thresholdsConfigured;
 
     function modules() external view returns (Modules memory) {
         return _modules;
+    }
+
+    function configurationStatus()
+        external
+        view
+        returns (bool modulesConfigured, bool timingsConfigured, bool thresholdsConfigured)
+    {
+        modulesConfigured = _areModulesConfigured();
+        timingsConfigured = _timingsConfigured;
+        thresholdsConfigured = _thresholdsConfigured;
+    }
+
+    function isFullyConfigured() external view returns (bool) {
+        return _areModulesConfigured() && _timingsConfigured && _thresholdsConfigured;
     }
 
     function setModules(Modules calldata newModules) external onlyOwner {
@@ -86,6 +108,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     function setTimings(uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow) external onlyOwner {
         require(commitWindow > 0 && revealWindow > 0 && disputeWindow > 0, "JobRegistry: timings");
         timings = Timings(commitWindow, revealWindow, disputeWindow);
+        _timingsConfigured = true;
         emit TimingsUpdated(timings);
     }
 
@@ -107,10 +130,12 @@ contract JobRegistry is Ownable, ReentrancyGuard {
             feeBps: feeBps,
             slashBpsMax: slashBpsMax
         });
+        _thresholdsConfigured = true;
         emit ThresholdsUpdated(thresholds);
     }
 
     function createJob(uint256 stakeAmount) external returns (uint256 jobId) {
+        _requireLifecycleConfigured();
         require(stakeAmount > 0, "JobRegistry: stake amount");
         Timings memory cfg = timings;
         jobId = ++totalJobs;
@@ -125,6 +150,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     }
 
     function commitJob(uint256 jobId, bytes32 commitHash) external nonReentrant {
+        _requireModulesConfigured();
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Created);
         if (block.timestamp > job.commitDeadline) revert WindowExpired("commit");
@@ -149,6 +175,8 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     }
 
     function finalizeJob(uint256 jobId, bool success) external onlyOwner nonReentrant {
+        _requireModulesConfigured();
+        _requireThresholdsConfigured();
         Job storage job = jobs[jobId];
         if (job.state != JobState.Revealed && job.state != JobState.Disputed) {
             revert InvalidState(JobState.Revealed, job.state);
@@ -171,6 +199,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     }
 
     function raiseDispute(uint256 jobId) external nonReentrant {
+        _requireModulesConfigured();
         Job storage job = jobs[jobId];
         if (job.state != JobState.Revealed && job.state != JobState.Committed) {
             revert InvalidState(JobState.Revealed, job.state);
@@ -186,6 +215,8 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         onlyOwner
         nonReentrant
     {
+        _requireModulesConfigured();
+        _requireThresholdsConfigured();
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Disputed);
 
@@ -211,5 +242,34 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         if (current != expected) {
             revert InvalidState(expected, current);
         }
+    }
+
+    function _requireModulesConfigured() private view {
+        if (!_areModulesConfigured()) {
+            revert NotConfigured(MODULES_KEY);
+        }
+    }
+
+    function _requireThresholdsConfigured() private view {
+        if (!_thresholdsConfigured) {
+            revert NotConfigured(THRESHOLDS_KEY);
+        }
+    }
+
+    function _requireLifecycleConfigured() private view {
+        _requireModulesConfigured();
+        if (!_timingsConfigured) {
+            revert NotConfigured(TIMINGS_KEY);
+        }
+        _requireThresholdsConfigured();
+    }
+
+    function _areModulesConfigured() private view returns (bool) {
+        return _modules.identity != address(0)
+            && _modules.staking != address(0)
+            && _modules.validation != address(0)
+            && _modules.dispute != address(0)
+            && _modules.reputation != address(0)
+            && _modules.feePool != address(0);
     }
 }
