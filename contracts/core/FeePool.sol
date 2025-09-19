@@ -19,6 +19,9 @@ contract FeePool is Ownable {
 
     using SafeERC20 for IERC20;
 
+    /// @notice Initializes the fee pool with immutable token metadata.
+    /// @param token Address of the ERC20 token used for protocol fees.
+    /// @param burnAddr Destination that will receive fee burns.
     constructor(address token, address burnAddr) {
         require(token != address(0), "FeePool: token");
         require(burnAddr != address(0), "FeePool: burn");
@@ -26,6 +29,8 @@ contract FeePool is Ownable {
         burnAddress = burnAddr;
     }
 
+    /// @notice Sets the job registry authorized to report fees.
+    /// @param registry Address of the job registry contract.
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "FeePool: registry");
         require(jobRegistry == address(0), "FeePool: registry already set");
@@ -38,6 +43,8 @@ contract FeePool is Ownable {
         _;
     }
 
+    /// @notice Records a new amount of protocol fees accrued.
+    /// @param amount Quantity of fees reported by the caller.
     function recordFee(uint256 amount) external onlyAuthorized {
         require(amount > 0, "FeePool: amount");
         totalFeesRecorded += amount;
@@ -46,9 +53,10 @@ contract FeePool is Ownable {
 
     /// @notice Sends the full token balance to the configured burn address.
     function burnAccumulatedFees() external onlyOwner {
-        uint256 balance = IERC20(feeToken).balanceOf(address(this));
+        IERC20 token = IERC20(feeToken);
+        uint256 balance = token.balanceOf(address(this));
         require(balance > 0, "FeePool: nothing to burn");
-        IERC20(feeToken).safeTransfer(burnAddress, balance);
         emit FeesBurned(balance);
+        token.safeTransfer(burnAddress, balance);
     }
 }

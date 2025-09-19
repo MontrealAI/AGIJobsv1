@@ -80,10 +80,16 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     bool private _timingsConfigured;
     bool private _thresholdsConfigured;
 
-    function modules() external view returns (Modules memory) {
-        return _modules;
+    /// @notice Returns the configured module addresses.
+    /// @return modules_ Struct containing module configuration.
+    function modules() external view returns (Modules memory modules_) {
+        modules_ = _modules;
     }
 
+    /// @notice Reports which sections of configuration have been completed.
+    /// @return modulesConfigured True when module wiring is complete.
+    /// @return timingsConfigured True when lifecycle timings are configured.
+    /// @return thresholdsConfigured True when economic thresholds are configured.
     function configurationStatus()
         external
         view
@@ -94,19 +100,30 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         thresholdsConfigured = _thresholdsConfigured;
     }
 
+    /// @notice Indicates whether the registry is ready to service jobs.
+    /// @return True if modules, timings, and thresholds are all configured.
     function isFullyConfigured() external view returns (bool) {
         return _areModulesConfigured() && _timingsConfigured && _thresholdsConfigured;
     }
 
+    /// @notice Sets the module wiring used throughout the registry lifecycle.
+    /// @param newModules Struct containing addresses for each module dependency.
     function setModules(Modules calldata newModules) external onlyOwner {
         require(newModules.identity != address(0), "JobRegistry: identity");
         require(newModules.staking != address(0), "JobRegistry: staking");
+        require(newModules.validation != address(0), "JobRegistry: validation");
+        require(newModules.dispute != address(0), "JobRegistry: dispute");
+        require(newModules.reputation != address(0), "JobRegistry: reputation");
         require(newModules.feePool != address(0), "JobRegistry: feePool");
 
         _modules = newModules;
         emit ModulesUpdated(newModules);
     }
 
+    /// @notice Configures the commit, reveal, and dispute windows.
+    /// @param commitWindow Duration of the commit phase in seconds.
+    /// @param revealWindow Duration of the reveal phase in seconds.
+    /// @param disputeWindow Duration of the dispute phase in seconds.
     function setTimings(uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow) external onlyOwner {
         require(commitWindow > 0 && revealWindow > 0 && disputeWindow > 0, "JobRegistry: timings");
         timings = Timings(commitWindow, revealWindow, disputeWindow);
@@ -114,6 +131,12 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit TimingsUpdated(timings);
     }
 
+    /// @notice Sets economic thresholds for job validation and slashing.
+    /// @param approvalThresholdBps Minimum approval threshold expressed in BPS.
+    /// @param quorumMin Minimum number of validators required.
+    /// @param quorumMax Maximum number of validators allowed.
+    /// @param feeBps Fee basis points to deduct from stake on completion.
+    /// @param slashBpsMax Maximum slashing amount expressed in basis points.
     function setThresholds(
         uint256 approvalThresholdBps,
         uint256 quorumMin,
@@ -136,6 +159,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit ThresholdsUpdated(thresholds);
     }
 
+    /// @notice Creates a new job and reserves stake for the workflow.
+    /// @param stakeAmount Amount of stake the worker must lock.
+    /// @return jobId Identifier assigned to the created job.
     function createJob(uint256 stakeAmount) external returns (uint256 jobId) {
         _requireLifecycleConfigured();
         require(stakeAmount > 0, "JobRegistry: stake amount");
@@ -151,6 +177,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit JobCreated(jobId, msg.sender, stakeAmount);
     }
 
+    /// @notice Commits to performing a job by locking stake and storing the commit hash.
+    /// @param jobId Identifier of the job being committed to.
+    /// @param commitHash Hash of the worker's secret submission.
     function commitJob(uint256 jobId, bytes32 commitHash) external nonReentrant {
         _requireModulesConfigured();
         Job storage job = jobs[jobId];
@@ -166,6 +195,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit JobCommitted(jobId, msg.sender, commitHash);
     }
 
+    /// @notice Reveals the committed work product for a job.
+    /// @param jobId Identifier of the job being revealed.
+    /// @param commitSecret Secret value that was hashed during the commit phase.
     function revealJob(uint256 jobId, bytes32 commitSecret) external {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Committed);
@@ -178,6 +210,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit JobRevealed(jobId, msg.sender);
     }
 
+    /// @notice Finalizes a job and settles stake, distributing fees as required.
+    /// @param jobId Identifier of the job being finalized.
+    /// @param success Flag indicating whether the job succeeded (used for off-chain context).
     function finalizeJob(uint256 jobId, bool success) external onlyOwner nonReentrant {
         _requireModulesConfigured();
         _requireThresholdsConfigured();
@@ -202,6 +237,8 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit JobFinalized(jobId, success, feeAmount);
     }
 
+    /// @notice Raises a dispute for a job that is in the reveal or committed state.
+    /// @param jobId Identifier of the disputed job.
     function raiseDispute(uint256 jobId) external nonReentrant {
         _requireModulesConfigured();
         Job storage job = jobs[jobId];
@@ -218,6 +255,11 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         emit JobDisputed(jobId, msg.sender);
     }
 
+    /// @notice Resolves an active dispute and optionally slashes the worker.
+    /// @param jobId Identifier of the disputed job.
+    /// @param slashWorker True when the worker should be slashed.
+    /// @param slashAmount Amount of stake to slash from the worker when applicable.
+    /// @param reputationDelta Signed adjustment to apply to the worker's reputation.
     function resolveDispute(uint256 jobId, bool slashWorker, uint256 slashAmount, int256 reputationDelta)
         external
         onlyOwner

@@ -28,6 +28,9 @@ contract StakeManager is Ownable, ReentrancyGuard {
     mapping(address => uint256) public totalDeposits;
     mapping(address => uint256) public lockedAmounts;
 
+    /// @notice Initializes the manager with the immutable stake token details.
+    /// @param token Address of the ERC20 token used for staking.
+    /// @param decimals_ Token decimals cached for off-chain accounting.
     constructor(address token, uint8 decimals_) {
         require(token != address(0), "StakeManager: token");
         stakeToken = IERC20(token);
@@ -62,8 +65,8 @@ contract StakeManager is Ownable, ReentrancyGuard {
         require(amount > 0, "StakeManager: amount");
         IERC20 token = stakeToken;
         require(token.allowance(msg.sender, address(this)) >= amount, "StakeManager: allowance");
-        token.safeTransferFrom(msg.sender, address(this), amount);
         totalDeposits[msg.sender] += amount;
+        token.safeTransferFrom(msg.sender, address(this), amount);
         emit Deposited(msg.sender, amount);
     }
 
@@ -109,16 +112,15 @@ contract StakeManager is Ownable, ReentrancyGuard {
         require(releaseAmount + slashAmount > 0, "StakeManager: nothing to settle");
         uint256 total = releaseAmount + slashAmount;
         require(lockedAmounts[account] >= total, "StakeManager: exceeds locked");
+        lockedAmounts[account] -= total;
         if (slashAmount > 0) {
             address recipient = feeRecipient;
             require(recipient != address(0), "StakeManager: fee recipient");
-            lockedAmounts[account] -= slashAmount;
             totalDeposits[account] -= slashAmount;
             stakeToken.safeTransfer(recipient, slashAmount);
             emit Slashed(account, slashAmount);
         }
         if (releaseAmount > 0) {
-            lockedAmounts[account] -= releaseAmount;
             emit Released(account, releaseAmount);
         }
     }
