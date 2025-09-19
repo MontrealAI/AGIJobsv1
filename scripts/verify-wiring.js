@@ -10,9 +10,13 @@ const params = require('../config/params.json');
 
 module.exports = async function (callback) {
   try {
+    const { GOV_SAFE, TIMELOCK_ADDR } = process.env;
+    const expectedOwner = GOV_SAFE || TIMELOCK_ADDR;
+
     const jobRegistry = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
     const modules = await jobRegistry.modules();
+
     const expectEq = (lhs, rhs, label) => {
       const left = lhs.toLowerCase();
       if (left === ZERO_ADDRESS) {
@@ -23,8 +27,25 @@ module.exports = async function (callback) {
       }
     };
 
+    const ensureOwner = (value, label, expected) => {
+      const normalizedValue = value.toLowerCase();
+      if (normalizedValue === ZERO_ADDRESS) {
+        throw new Error(`Zero address for ${label}`);
+      }
+      if (expected && normalizedValue !== expected.toLowerCase()) {
+        throw new Error(
+          `Ownership mismatch for ${label}: expected ${expected} but found ${value}`
+        );
+      }
+    };
+
+    if (expectedOwner) {
+      console.log(`Checking ownership against ${expectedOwner}`);
+    }
+
     const owner = await jobRegistry.owner();
-    expectEq(owner, owner, 'jobRegistry.owner');
+    const ownerCheckTarget = expectedOwner || owner;
+    ensureOwner(owner, 'jobRegistry.owner', ownerCheckTarget);
 
     const identity = await IdentityRegistry.deployed();
     const staking = await StakeManager.deployed();
@@ -54,7 +75,7 @@ module.exports = async function (callback) {
         ['feePool.owner', feePool.owner()],
       ].map(async ([label, valuePromise]) => {
         const value = await valuePromise;
-        expectEq(value, owner, label);
+        ensureOwner(value, label, ownerCheckTarget);
       })
     );
 
@@ -74,6 +95,8 @@ module.exports = async function (callback) {
     console.log('Wiring check passed');
     callback();
   } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
     callback(err);
   }
 };
