@@ -10,9 +10,9 @@ const params = require('../config/params.json');
 
 module.exports = async function (callback) {
   try {
-    const jr = await JobRegistry.deployed();
+    const jobRegistry = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-    const modules = await jr.modules();
+    const modules = await jobRegistry.modules();
     const expectEq = (lhs, rhs, label) => {
       const left = lhs.toLowerCase();
       if (left === ZERO_ADDRESS) {
@@ -41,12 +41,12 @@ module.exports = async function (callback) {
       expectEq(actual, expected, label);
     });
 
-    expectEq(await staking.jobRegistry(), jr.address, 'staking.jobRegistry');
-    expectEq(await feePool.jobRegistry(), jr.address, 'feePool.jobRegistry');
-    expectEq(await dispute.jobRegistry(), jr.address, 'dispute.jobRegistry');
-    expectEq(await reputation.jobRegistry(), jr.address, 'reputation.jobRegistry');
+    expectEq(await staking.jobRegistry(), jobRegistry.address, 'staking.jobRegistry');
+    expectEq(await feePool.jobRegistry(), jobRegistry.address, 'feePool.jobRegistry');
+    expectEq(await dispute.jobRegistry(), jobRegistry.address, 'dispute.jobRegistry');
+    expectEq(await reputation.jobRegistry(), jobRegistry.address, 'reputation.jobRegistry');
 
-    const thresholds = await jr.thresholds();
+    const thresholds = await jobRegistry.thresholds();
     if (Number(thresholds.feeBps) !== params.feeBps) {
       throw new Error('feeBps mismatch');
     }
