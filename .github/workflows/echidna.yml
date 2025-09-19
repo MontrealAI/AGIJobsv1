@@ -52,7 +52,9 @@ jobs:
           solc-select install 0.8.20
           solc-select use 0.8.20
       - name: Run Echidna smoke
-        run: >-
-          echidna-test ./contracts/core/EchidnaJobRegistryInvariants.sol \
-          --contract EchidnaJobRegistryInvariants \
-          --config tools/echidna.yaml
+        run: |
+          set -euxo pipefail
+          echidna-test \
+            ./contracts/core/EchidnaJobRegistryInvariants.sol \
+            --contract EchidnaJobRegistryInvariants \
+            --config tools/echidna.yaml
