@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /* solcover ignore file */
-pragma solidity 0.8.20;
+pragma solidity 0.8.23;
 
 /// @title ReentrancyGuard
 /// @notice Minimal nonReentrant guard to protect against reentrant calls.

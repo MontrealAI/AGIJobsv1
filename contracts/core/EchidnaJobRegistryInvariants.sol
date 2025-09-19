@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.23;
 
 /* istanbul ignore file */
 
@@ -12,23 +12,24 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 import {JobRegistry} from "./JobRegistry.sol";
 import {WorkerActor} from "./testing/WorkerActor.sol";
 import {ClientActor} from "./testing/ClientActor.sol";
+import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 
 /* solhint-disable func-name-mixedcase */
 
 /// @dev Harness used by Echidna to ensure high-level invariants remain true under fuzzing.
-contract EchidnaJobRegistryInvariants {
+contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     uint256 private constant MAX_STAKE = 1e18;
 
-    StakeManager private stakeManager;
-    FeePool private feePool;
-    ValidationModule private validationModule;
-    DisputeModule private disputeModule;
-    ReputationEngine private reputationEngine;
-    IdentityRegistry private identityRegistry;
-    JobRegistry private jobRegistry;
+    StakeManager private immutable stakeManager;
+    FeePool private immutable feePool;
+    ValidationModule private immutable validationModule;
+    DisputeModule private immutable disputeModule;
+    ReputationEngine private immutable reputationEngine;
+    IdentityRegistry private immutable identityRegistry;
+    JobRegistry private immutable jobRegistry;
 
     WorkerActor[2] private workers;
-    ClientActor private client;
+    ClientActor private immutable client;
 
     mapping(uint256 => bytes32) private jobSecrets;
     mapping(uint256 => address) private jobWorkers;
@@ -68,13 +69,13 @@ contract EchidnaJobRegistryInvariants {
         client = new ClientActor(jobRegistry);
     }
 
-    function fuzzDeposit(uint8 workerIndex, uint128 rawAmount) external {
+    function fuzzDeposit(uint8 workerIndex, uint128 rawAmount) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 amount = (uint256(rawAmount) % MAX_STAKE) + 1;
         worker.deposit(amount);
     }
 
-    function fuzzWithdraw(uint8 workerIndex, uint128 rawAmount) external {
+    function fuzzWithdraw(uint8 workerIndex, uint128 rawAmount) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 available = stakeManager.availableStake(address(worker));
         if (available == 0) {
@@ -88,11 +89,13 @@ contract EchidnaJobRegistryInvariants {
         worker.withdraw(amount);
     }
 
-    function fuzzCreateAndCommit(uint8 workerIndex, uint128 rawStake) external {
+    function fuzzCreateAndCommit(uint8 workerIndex, uint128 rawStake) external nonReentrant {
         WorkerActor worker = _worker(workerIndex);
         uint256 stakeAmount = (uint256(rawStake) % MAX_STAKE) + 1;
 
+        // slither-disable-next-line reentrancy-no-eth
         worker.deposit(stakeAmount);
+        // slither-disable-next-line reentrancy-no-eth
         uint256 jobId = client.createJob(stakeAmount);
         bytes32 secret = keccak256(abi.encodePacked(jobId, workerIndex, address(worker)));
 
@@ -103,7 +106,11 @@ contract EchidnaJobRegistryInvariants {
         worker.commit(jobId, keccak256(abi.encodePacked(secret)));
     }
 
-    function fuzzReveal(uint256 jobId) public {
+    function fuzzReveal(uint256 jobId) public nonReentrant {
+        _reveal(jobId);
+    }
+
+    function _reveal(uint256 jobId) private {
         if (jobCompleted[jobId]) {
             return;
         }
@@ -113,32 +120,33 @@ contract EchidnaJobRegistryInvariants {
             return;
         }
 
-        (JobRegistry.JobState state,,) = _getJob(jobId);
-        if (state != JobRegistry.JobState.Committed) {
+        JobRegistry.Job memory job = _getJob(jobId);
+        if (job.state != JobRegistry.JobState.Committed) {
             return;
         }
 
         WorkerActor(workerAddr).reveal(jobId, jobSecrets[jobId]);
     }
 
-    function fuzzFinalize(uint256 jobId, bool success) external {
+    function fuzzFinalize(uint256 jobId, bool success) external nonReentrant {
         if (jobCompleted[jobId]) {
             return;
         }
 
-        (JobRegistry.JobState state, uint256 stakeAmount,) = _getJob(jobId);
-        if (state == JobRegistry.JobState.Committed) {
-            fuzzReveal(jobId);
-            (state, stakeAmount,) = _getJob(jobId);
+        JobRegistry.Job memory job = _getJob(jobId);
+        if (job.state == JobRegistry.JobState.Committed) {
+            _reveal(jobId);
+            job = _getJob(jobId);
         }
 
-        if (state != JobRegistry.JobState.Revealed && state != JobRegistry.JobState.Disputed) {
+        if (job.state != JobRegistry.JobState.Revealed && job.state != JobRegistry.JobState.Disputed) {
             return;
         }
 
-        (,,, uint256 feeBps,) = _getThresholds();
-        uint256 feeAmount = (stakeAmount * feeBps) / jobRegistry.BPS_DENOMINATOR();
+        JobRegistry.Thresholds memory thresholds = _getThresholds();
+        uint256 feeAmount = (job.stakeAmount * thresholds.feeBps) / jobRegistry.BPS_DENOMINATOR();
 
+        // slither-disable-next-line reentrancy-no-eth
         try jobRegistry.finalizeJob(jobId, success) {
             expectedFees += feeAmount;
             jobCompleted[jobId] = true;
@@ -154,28 +162,30 @@ contract EchidnaJobRegistryInvariants {
         bool slashWorker,
         uint128 rawSlash,
         int128 rawReputation
-    ) external {
+    ) external nonReentrant {
         if (jobCompleted[jobId]) {
             return;
         }
 
-        (JobRegistry.JobState state, uint256 stakeAmount,) = _getJob(jobId);
-        if (state == JobRegistry.JobState.Committed || state == JobRegistry.JobState.Revealed) {
+        JobRegistry.Job memory job = _getJob(jobId);
+        if (job.state == JobRegistry.JobState.Committed || job.state == JobRegistry.JobState.Revealed) {
+            // slither-disable-next-line reentrancy-no-eth
             try client.raiseDispute(jobId) {
-                (state, stakeAmount,) = _getJob(jobId);
+                job = _getJob(jobId);
             } catch {
                 return;
             }
         }
 
-        if (state != JobRegistry.JobState.Disputed) {
+        if (job.state != JobRegistry.JobState.Disputed) {
             return;
         }
 
-        (,,, , uint256 slashBpsMax) = _getThresholds();
-        uint256 maxSlash = (stakeAmount * slashBpsMax) / jobRegistry.BPS_DENOMINATOR();
+        JobRegistry.Thresholds memory thresholds = _getThresholds();
+        uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / jobRegistry.BPS_DENOMINATOR();
         uint256 slashAmount = maxSlash > 0 ? uint256(rawSlash) % (maxSlash + 1) : 0;
 
+        // slither-disable-next-line reentrancy-no-eth
         try jobRegistry.resolveDispute(jobId, slashWorker, slashAmount, int256(rawReputation)) {
             jobCompleted[jobId] = true;
             jobWorkers[jobId] = address(0);
@@ -190,8 +200,8 @@ contract EchidnaJobRegistryInvariants {
         uint16 slashBpsMax,
         uint16 quorumMinRaw,
         uint16 quorumMaxRaw
-    ) external {
-        (uint256 approvalThresholdBps,, , ,) = _getThresholds();
+    ) external nonReentrant {
+        JobRegistry.Thresholds memory thresholds = _getThresholds();
         uint256 denominator = jobRegistry.BPS_DENOMINATOR();
         uint256 newMin = (uint256(quorumMinRaw) % 10) + 1;
         uint256 newMax = newMin + (uint256(quorumMaxRaw) % 10);
@@ -202,10 +212,13 @@ contract EchidnaJobRegistryInvariants {
             newMax = newMin;
         }
 
-        jobRegistry.setThresholds(approvalThresholdBps, newMin, newMax, newFee, newSlash);
+        jobRegistry.setThresholds(thresholds.approvalThresholdBps, newMin, newMax, newFee, newSlash);
     }
 
-    function fuzzUpdateTimings(uint64 commitWindowRaw, uint64 revealWindowRaw, uint64 disputeWindowRaw) external {
+    function fuzzUpdateTimings(uint64 commitWindowRaw, uint64 revealWindowRaw, uint64 disputeWindowRaw)
+        external
+        nonReentrant
+    {
         uint256 commitWindow = (uint256(commitWindowRaw) % 7 days) + 1;
         uint256 revealWindow = (uint256(revealWindowRaw) % 7 days) + 1;
         uint256 disputeWindow = (uint256(disputeWindowRaw) % 7 days) + 1;
@@ -228,68 +241,48 @@ contract EchidnaJobRegistryInvariants {
     }
 
     function echidna_threshold_bounds_hold() external view returns (bool) {
-        (
-            ,
-            uint256 quorumMin,
-            uint256 quorumMax,
-            uint256 feeBps,
-            uint256 slashBpsMax
-        ) = _getThresholds();
+        JobRegistry.Thresholds memory thresholds = _getThresholds();
         uint256 denominator = jobRegistry.BPS_DENOMINATOR();
         return
-            quorumMin > 0 &&
-            quorumMin <= quorumMax &&
-            feeBps <= denominator &&
-            slashBpsMax <= denominator;
+            thresholds.quorumMin > 0 &&
+            thresholds.quorumMin <= thresholds.quorumMax &&
+            thresholds.feeBps <= denominator &&
+            thresholds.slashBpsMax <= denominator;
     }
 
     function echidna_timings_positive() external view returns (bool) {
-        (uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow) = _getTimings();
-        return commitWindow > 0 && revealWindow > 0 && disputeWindow > 0;
+        JobRegistry.Timings memory timings_ = _getTimings();
+        return timings_.commitWindow > 0 && timings_.revealWindow > 0 && timings_.disputeWindow > 0;
     }
 
     function _worker(uint8 index) private view returns (WorkerActor) {
         return workers[index % workers.length];
     }
 
-    function _getJob(uint256 jobId)
-        private
-        view
-        returns (JobRegistry.JobState state, uint256 stakeAmount, address workerAddr)
-    {
+    function _getJob(uint256 jobId) private view returns (JobRegistry.Job memory job) {
         (
-            ,
-            address worker,
-            uint256 stakeAmount_,
-            ,
-            ,
-            ,
-            ,
-            JobRegistry.JobState state_
+            job.client,
+            job.worker,
+            job.stakeAmount,
+            job.commitDeadline,
+            job.revealDeadline,
+            job.disputeDeadline,
+            job.commitHash,
+            job.state
         ) = jobRegistry.jobs(jobId);
-
-        return (state_, stakeAmount_, worker);
     }
 
-    function _getThresholds()
-        private
-        view
-        returns (
-            uint256 approvalThresholdBps,
-            uint256 quorumMin,
-            uint256 quorumMax,
-            uint256 feeBps,
-            uint256 slashBpsMax
-        )
-    {
-        return jobRegistry.thresholds();
+    function _getThresholds() private view returns (JobRegistry.Thresholds memory thresholds) {
+        (
+            thresholds.approvalThresholdBps,
+            thresholds.quorumMin,
+            thresholds.quorumMax,
+            thresholds.feeBps,
+            thresholds.slashBpsMax
+        ) = jobRegistry.thresholds();
     }
 
-    function _getTimings()
-        private
-        view
-        returns (uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow)
-    {
-        return jobRegistry.timings();
+    function _getTimings() private view returns (JobRegistry.Timings memory timings_) {
+        (timings_.commitWindow, timings_.revealWindow, timings_.disputeWindow) = jobRegistry.timings();
     }
 }
