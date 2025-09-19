@@ -2,6 +2,11 @@
 pragma solidity 0.8.20;
 
 import {Ownable} from "../libs/Ownable.sol";
+import {IERC20} from "../interfaces/IERC20.sol";
+
+interface IFeePool {
+    function forwardToBurn(uint256 amount) external;
+}
 
 /// @title StakeManager
 /// @notice Tracks stake balances, locks amounts for jobs, and records slashing events.
@@ -12,11 +17,13 @@ contract StakeManager is Ownable {
     event Released(address indexed account, uint256 amount);
     event Slashed(address indexed account, uint256 amount);
     event JobRegistryUpdated(address indexed jobRegistry);
+    event FeePoolUpdated(address indexed feePool);
 
     address public immutable stakeToken;
     uint8 public immutable stakeTokenDecimals;
 
     address public jobRegistry;
+    address public feePool;
 
     mapping(address => uint256) public totalDeposits;
     mapping(address => uint256) public lockedAmounts;
@@ -41,6 +48,10 @@ contract StakeManager is Ownable {
     /// @notice Adds stake on behalf of the caller.
     function deposit(uint256 amount) external {
         require(amount > 0, "StakeManager: amount");
+        require(stakeToken != address(0), "StakeManager: token");
+        IERC20 token = IERC20(stakeToken);
+        require(token.allowance(msg.sender, address(this)) >= amount, "StakeManager: allowance");
+        require(token.transferFrom(msg.sender, address(this), amount), "StakeManager: transferFrom");
         totalDeposits[msg.sender] += amount;
         emit Deposited(msg.sender, amount);
     }
@@ -52,6 +63,7 @@ contract StakeManager is Ownable {
         require(available >= amount, "StakeManager: insufficient");
         totalDeposits[msg.sender] -= amount;
         emit Withdrawn(msg.sender, amount);
+        require(IERC20(stakeToken).transfer(msg.sender, amount), "StakeManager: transfer");
     }
 
     /// @notice Locks stake for a job. Only callable by the configured job registry.
@@ -78,6 +90,7 @@ contract StakeManager is Ownable {
             lockedAmounts[account] -= slashAmount;
             totalDeposits[account] -= slashAmount;
             emit Slashed(account, slashAmount);
+            _distributeSlash(slashAmount);
         }
         if (releaseAmount > 0) {
             lockedAmounts[account] -= releaseAmount;
@@ -90,10 +103,28 @@ contract StakeManager is Ownable {
         lockedAmounts[account] -= amount;
         totalDeposits[account] -= amount;
         emit Slashed(account, amount);
+        _distributeSlash(amount);
     }
 
     /// @notice Computes the amount of stake available for locking.
     function availableStake(address account) public view returns (uint256) {
         return totalDeposits[account] - lockedAmounts[account];
+    }
+
+    function setFeePool(address pool) external onlyOwner {
+        require(pool != address(0), "StakeManager: fee pool");
+        feePool = pool;
+        emit FeePoolUpdated(pool);
+    }
+
+    function _distributeSlash(uint256 amount) internal {
+        if (amount == 0) {
+            return;
+        }
+        address pool = feePool;
+        require(pool != address(0), "StakeManager: fee pool");
+        IERC20 token = IERC20(stakeToken);
+        require(token.transfer(pool, amount), "StakeManager: transfer");
+        IFeePool(pool).forwardToBurn(amount);
     }
 }
