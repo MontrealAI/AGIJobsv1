@@ -27,6 +27,7 @@ module.exports = async function (_deployer, network, accounts) {
   });
 
   await staking.setJobRegistry(jr.address);
+  await staking.setFeeRecipient(feePool.address);
   await feePool.setJobRegistry(jr.address);
   await dispute.setJobRegistry(jr.address);
   await reputation.setJobRegistry(jr.address);

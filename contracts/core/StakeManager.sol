@@ -2,6 +2,8 @@
 pragma solidity 0.8.23;
 
 import {Ownable} from "../libs/Ownable.sol";
+import {IERC20} from "../libs/IERC20.sol";
+import {SafeERC20} from "../libs/SafeERC20.sol";
 
 /// @title StakeManager
 /// @notice Tracks stake balances, locks amounts for jobs, and records slashing events.
@@ -12,18 +14,22 @@ contract StakeManager is Ownable {
     event Released(address indexed account, uint256 amount);
     event Slashed(address indexed account, uint256 amount);
     event JobRegistryUpdated(address indexed jobRegistry);
+    event FeeRecipientUpdated(address indexed feeRecipient);
 
-    address public immutable stakeToken;
+    using SafeERC20 for IERC20;
+
+    IERC20 public immutable stakeToken;
     uint8 public immutable stakeTokenDecimals;
 
     address public jobRegistry;
+    address public feeRecipient;
 
     mapping(address => uint256) public totalDeposits;
     mapping(address => uint256) public lockedAmounts;
 
     constructor(address token, uint8 decimals_) {
         require(token != address(0), "StakeManager: token");
-        stakeToken = token;
+        stakeToken = IERC20(token);
         stakeTokenDecimals = decimals_;
     }
 
@@ -39,9 +45,19 @@ contract StakeManager is Ownable {
         emit JobRegistryUpdated(registry);
     }
 
+    /// @notice Sets the address that receives slashed stake.
+    function setFeeRecipient(address recipient) external onlyOwner {
+        require(recipient != address(0), "StakeManager: fee recipient");
+        feeRecipient = recipient;
+        emit FeeRecipientUpdated(recipient);
+    }
+
     /// @notice Adds stake on behalf of the caller.
     function deposit(uint256 amount) external {
         require(amount > 0, "StakeManager: amount");
+        IERC20 token = stakeToken;
+        require(token.allowance(msg.sender, address(this)) >= amount, "StakeManager: allowance");
+        token.safeTransferFrom(msg.sender, address(this), amount);
         totalDeposits[msg.sender] += amount;
         emit Deposited(msg.sender, amount);
     }
@@ -51,6 +67,7 @@ contract StakeManager is Ownable {
         require(amount > 0, "StakeManager: amount");
         uint256 available = availableStake(msg.sender);
         require(available >= amount, "StakeManager: insufficient");
+        stakeToken.safeTransfer(msg.sender, amount);
         totalDeposits[msg.sender] -= amount;
         emit Withdrawn(msg.sender, amount);
     }
@@ -76,8 +93,11 @@ contract StakeManager is Ownable {
         uint256 total = releaseAmount + slashAmount;
         require(lockedAmounts[account] >= total, "StakeManager: exceeds locked");
         if (slashAmount > 0) {
+            address recipient = feeRecipient;
+            require(recipient != address(0), "StakeManager: fee recipient unset");
             lockedAmounts[account] -= slashAmount;
             totalDeposits[account] -= slashAmount;
+            stakeToken.safeTransfer(recipient, slashAmount);
             emit Slashed(account, slashAmount);
         }
         if (releaseAmount > 0) {
@@ -88,8 +108,11 @@ contract StakeManager is Ownable {
 
     function slashStake(address account, uint256 amount) external onlyJobRegistry {
         require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
+        address recipient = feeRecipient;
+        require(recipient != address(0), "StakeManager: fee recipient unset");
         lockedAmounts[account] -= amount;
         totalDeposits[account] -= amount;
+        stakeToken.safeTransfer(recipient, amount);
         emit Slashed(account, amount);
     }
 

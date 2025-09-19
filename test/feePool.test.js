@@ -1,11 +1,14 @@
 const { expectEvent, expectRevert, constants } = require('@openzeppelin/test-helpers');
 const FeePool = artifacts.require('FeePool');
+const MockERC20 = artifacts.require('MockERC20');
 
 contract('FeePool', (accounts) => {
-  const [owner, registry, stranger, , , , , , burnAddress, feeToken] = accounts;
+  const [owner, registry, stranger, burnAddress] = accounts;
 
   beforeEach(async function () {
-    this.pool = await FeePool.new(feeToken, burnAddress, { from: owner });
+    this.token = await MockERC20.new('Stake', 'STK', 18, { from: owner });
+    await this.token.mint(owner, web3.utils.toBN('1000'), { from: owner });
+    this.pool = await FeePool.new(this.token.address, burnAddress, { from: owner });
   });
 
   it('sets the job registry with owner checks', async function () {
@@ -19,7 +22,7 @@ contract('FeePool', (accounts) => {
 
   it('requires non-zero constructor arguments', async function () {
     await expectRevert(FeePool.new(constants.ZERO_ADDRESS, burnAddress, { from: owner }), 'FeePool: token');
-    await expectRevert(FeePool.new(feeToken, constants.ZERO_ADDRESS, { from: owner }), 'FeePool: burn');
+    await expectRevert(FeePool.new(this.token.address, constants.ZERO_ADDRESS, { from: owner }), 'FeePool: burn');
   });
 
   it('enforces ownership transfers', async function () {
@@ -44,5 +47,15 @@ contract('FeePool', (accounts) => {
     assert.strictEqual((await this.pool.totalFeesRecorded()).toString(), '75');
 
     await expectRevert(this.pool.recordFee('10', { from: stranger }), 'FeePool: not authorized');
+  });
+
+  it('burns accumulated fees to the configured sink', async function () {
+    await expectRevert(this.pool.burnAccumulatedFees({ from: stranger }), 'Ownable: caller is not the owner');
+    await expectRevert(this.pool.burnAccumulatedFees({ from: owner }), 'FeePool: nothing to burn');
+
+    await this.token.transfer(this.pool.address, '200', { from: owner });
+    const receipt = await this.pool.burnAccumulatedFees({ from: owner });
+    expectEvent(receipt, 'FeesBurned', { amount: web3.utils.toBN(200) });
+    assert.strictEqual((await this.token.balanceOf(burnAddress)).toString(), '200');
   });
 });
