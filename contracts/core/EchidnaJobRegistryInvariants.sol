@@ -35,6 +35,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     mapping(uint256 => address) private jobWorkers;
     mapping(uint256 => bool) private jobCompleted;
 
+    bool private slashBoundsViolated;
     uint256 private expectedFees;
 
     constructor() {
@@ -60,6 +61,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         jobRegistry.setThresholds(6000, 1, 5, 250, 2000);
 
         stakeManager.setJobRegistry(address(jobRegistry));
+        stakeManager.setFeeRecipient(address(feePool));
         feePool.setJobRegistry(address(jobRegistry));
         disputeModule.setJobRegistry(address(jobRegistry));
         reputationEngine.setJobRegistry(address(jobRegistry));
@@ -220,6 +222,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         bool previousJobCompleted = jobCompleted[jobId];
         address previousJobWorker = jobWorkers[jobId];
         bytes32 previousJobSecret = jobSecrets[jobId];
+        uint256 previousDeposits = stakeManager.totalDeposits(previousJobWorker);
 
         // Pre-write exists to satisfy the static analyzer and retain explicit reentrancy protection.
         jobCompleted[jobId] = true;
@@ -230,6 +233,15 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         // solhint-disable-next-line no-empty-blocks
         try jobRegistry.resolveDispute(jobId, slashWorker, slashAmount, int256(rawReputation)) {
             // already staged state
+            if (slashWorker && previousJobWorker != address(0)) {
+                uint256 currentDeposits = stakeManager.totalDeposits(previousJobWorker);
+                if (previousDeposits > currentDeposits) {
+                    uint256 realizedSlash = previousDeposits - currentDeposits;
+                    if (realizedSlash > maxSlash) {
+                        slashBoundsViolated = true;
+                    }
+                }
+            }
         } catch {
             jobCompleted[jobId] = previousJobCompleted;
             jobWorkers[jobId] = previousJobWorker;
@@ -298,6 +310,12 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         return feePool.totalFeesRecorded() == expectedFees;
     }
 
+    /// @notice Ensures dispute resolutions never slash more than the configured maximum.
+    /// @return True if no slash has exceeded the allowed bound.
+    function echidna_dispute_slash_bounds_hold() external view returns (bool) {
+        return !slashBoundsViolated;
+    }
+
     /// @notice Confirms threshold configuration values remain within valid bounds.
     /// @return True if quorum and basis point parameters satisfy the invariant.
     function echidna_threshold_bounds_hold() external view returns (bool) {
@@ -308,6 +326,20 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
             thresholds.quorumMin <= thresholds.quorumMax &&
             thresholds.feeBps <= denominator &&
             thresholds.slashBpsMax <= denominator;
+    }
+
+    /// @notice Confirms all module contracts remain owned by the harness.
+    /// @return True if ownership has not been transferred away from Echidna.
+    function echidna_module_ownership_preserved() external view returns (bool) {
+        address harness = address(this);
+        return
+            stakeManager.owner() == harness &&
+            feePool.owner() == harness &&
+            validationModule.owner() == harness &&
+            disputeModule.owner() == harness &&
+            reputationEngine.owner() == harness &&
+            identityRegistry.owner() == harness &&
+            jobRegistry.owner() == harness;
     }
 
     /// @notice Checks that lifecycle timing durations remain positive.

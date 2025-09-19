@@ -25,7 +25,7 @@ contract('DisputeModule', (accounts) => {
 
     await expectRevert(
       this.module.setJobRegistry(raiser, { from: owner }),
-      'DisputeModule: registry already set'
+      'DisputeModule: registry set'
     );
   });
 

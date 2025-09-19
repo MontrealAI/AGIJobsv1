@@ -35,7 +35,7 @@ contract('StakeManager', (accounts) => {
 
     await expectRevert(
       this.manager.setJobRegistry(other, { from: owner }),
-      'StakeManager: registry already set'
+      'StakeManager: registry set'
     );
   });
 

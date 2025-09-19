@@ -447,6 +447,42 @@ contract('JobRegistry', (accounts) => {
     );
   });
 
+  it('applies updated slash bounds to pending disputes', async function () {
+    const stakeAmount = web3.utils.toBN('750');
+    await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const { logs } = await this.jobRegistry.createJob(stakeAmount, { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+    await this.jobRegistry.raiseDispute(jobId, { from: client });
+
+    await this.jobRegistry.setThresholds(6000, 1, 11, 250, 500, { from: deployer });
+    const slashAttempt = stakeAmount.muln(20).divn(100);
+
+    await expectRevert(
+      this.jobRegistry.resolveDispute(jobId, true, slashAttempt, 0, { from: deployer }),
+      'JobRegistry: slash bounds'
+    );
+  });
+
+  it('blocks disputes raised after the dispute window expires', async function () {
+    await this.stakeManager.deposit(web3.utils.toBN('400'), { from: worker });
+    const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('400'), { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+
+    const job = await this.jobRegistry.jobs(jobId);
+    const disputeDeadline = web3.utils.toBN(job.disputeDeadline);
+    await time.increaseTo(disputeDeadline.addn(1));
+
+    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+  });
+
   it('validates configuration inputs', async function () {
     await expectRevert(
       this.jobRegistry.setModules(
