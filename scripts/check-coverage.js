@@ -65,7 +65,11 @@ function checkCoverage(options = {}) {
 
   const content = fs.readFileSync(lcovPath, 'utf8');
   const { totalLines, coveredLines } = aggregateLcov(content);
-  const pct = totalLines === 0 ? 100 : (coveredLines / totalLines) * 100;
+  if (totalLines === 0) {
+    throw new Error(`No line metrics found in LCOV report at ${lcovPath}`);
+  }
+
+  const pct = (coveredLines / totalLines) * 100;
 
   return { totalLines, coveredLines, pct, lcovPath };
 }
