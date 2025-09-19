@@ -52,4 +52,7 @@ jobs:
           solc-select install 0.8.20
           solc-select use 0.8.20
       - name: Run Echidna smoke
-        run: echidna-test ./contracts/core --test-mode assertion --corpus-dir=echidna-corpus --test-limit 500
+        run: >-
+          echidna-test ./contracts/core/EchidnaJobRegistryInvariants.sol \
+          --contract EchidnaJobRegistryInvariants \
+          --config tools/echidna.yaml

@@ -1,3 +1,8 @@
 module.exports = {
-  skipFiles: ['libs/ReentrancyGuard.sol']
+  skipFiles: [
+    'core/EchidnaJobRegistryInvariants.sol',
+    'core/testing/ClientActor.sol',
+    'core/testing/WorkerActor.sol',
+    'libs/ReentrancyGuard.sol'
+  ]
 };
