@@ -8,7 +8,7 @@
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "build": "truffle compile",
     "test": "TRUFFLE_TEST=true npm run ganache:test",
-    "coverage": "npm run coverage:run && COVERAGE_THRESHOLD=65 npm run coverage:check",
+    "coverage": "npm run coverage:run && COVERAGE_THRESHOLD=90 npm run coverage:check",
     "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
     "coverage:check": "node scripts/check-coverage.js",
     "gas": "REPORT_GAS=true truffle test",

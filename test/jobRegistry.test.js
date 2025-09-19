@@ -8,7 +8,215 @@ const ReputationEngine = artifacts.require('ReputationEngine');
 const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
 
+const CUSTOM_ERROR_TYPES = {
+  NotConfigured: ['bytes32'],
+};
+
+function stripQuotes(value) {
+  if (
+    value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function splitArgs(argsRaw) {
+  if (!argsRaw) {
+    return [];
+  }
+
+  const args = [];
+  let current = '';
+  let quote = null;
+  for (const ch of argsRaw) {
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+
+    if (ch === ',') {
+      if (current.trim().length > 0) {
+        args.push(current.trim());
+      } else {
+        args.push('');
+      }
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current.trim().length > 0) {
+    args.push(current.trim());
+  } else if (current.length > 0) {
+    args.push('');
+  }
+
+  return args;
+}
+
+function parseCustomErrorSignature(signature) {
+  const trimmed = signature.trim();
+  const parts = trimmed.split('.');
+  const last = parts[parts.length - 1];
+  const match = last.match(/^([^(]+)\((.*)\)$/);
+  if (!match) {
+    return { errorName: last, args: [] };
+  }
+
+  const [, errorName, argsRaw] = match;
+  return { errorName, args: splitArgs(argsRaw) };
+}
+
+function extractRevertData(error) {
+  if (!error) {
+    return null;
+  }
+
+  const { data } = error;
+  if (!data) {
+    return null;
+  }
+
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  if (typeof data.result === 'string') {
+    return data.result;
+  }
+
+  if (typeof data.data === 'string') {
+    return data.data;
+  }
+
+  for (const value of Object.values(data)) {
+    if (!value) {
+      continue;
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value.result === 'string') {
+      return value.result;
+    }
+    if (typeof value.return === 'string') {
+      return value.return;
+    }
+    if (typeof value.data === 'string') {
+      return value.data;
+    }
+  }
+
+  return null;
+}
+
+function matchesDecodedValue(expectedToken, type, actualValue) {
+  if (!expectedToken || expectedToken.length === 0) {
+    return true;
+  }
+
+  const normalizedToken = stripQuotes(expectedToken);
+
+  if (type === 'bytes32') {
+    if (normalizedToken.startsWith('0x')) {
+      return actualValue.toLowerCase() === normalizedToken.toLowerCase();
+    }
+
+    const expectedHex = web3.utils
+      .padRight(web3.utils.asciiToHex(normalizedToken), 66)
+      .toLowerCase();
+    if (actualValue.toLowerCase() === expectedHex) {
+      return true;
+    }
+
+    try {
+      const decodedAscii = web3.utils.hexToUtf8(actualValue).replace(/\u0000+$/g, '');
+      if (decodedAscii === normalizedToken) {
+        return true;
+      }
+    } catch (decodeError) {
+      // Ignore decoding failures and fall through to false.
+    }
+
+    return false;
+  }
+
+  if (type.startsWith('uint')) {
+    return web3.utils.toBN(actualValue).eq(web3.utils.toBN(normalizedToken));
+  }
+
+  if (type === 'address') {
+    return (
+      web3.utils.toChecksumAddress(actualValue) === web3.utils.toChecksumAddress(normalizedToken)
+    );
+  }
+
+  if (type === 'string') {
+    return actualValue === normalizedToken;
+  }
+
+  return true;
+}
+
+function tryDecodeCustomError(error, errorName, expectedArgs) {
+  if (!errorName || !CUSTOM_ERROR_TYPES[errorName]) {
+    return false;
+  }
+
+  const revertData = extractRevertData(error);
+  if (!revertData || typeof revertData !== 'string') {
+    return false;
+  }
+
+  const normalizedData = revertData.startsWith('0x') ? revertData.slice(2) : revertData;
+  if (normalizedData.length < 8) {
+    return false;
+  }
+
+  const actualSelector = normalizedData.slice(0, 8).toLowerCase();
+  const types = CUSTOM_ERROR_TYPES[errorName];
+  const expectedSelector = web3.eth.abi
+    .encodeFunctionSignature(`${errorName}(${types.join(',')})`)
+    .slice(2, 10)
+    .toLowerCase();
+
+  if (actualSelector !== expectedSelector) {
+    return false;
+  }
+
+  if (types.length === 0) {
+    return true;
+  }
+
+  const paramsData = '0x' + normalizedData.slice(8);
+  const decoded = web3.eth.abi.decodeParameters(types, paramsData);
+
+  for (let i = 0; i < Math.min(expectedArgs.length, types.length); i += 1) {
+    if (!matchesDecodedValue(expectedArgs[i], types[i], decoded[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 async function expectCustomError(promise, signature) {
+  const { errorName, args } = parseCustomErrorSignature(signature);
+
   try {
     await promise;
     assert.fail(`Expected custom error ${signature} but call succeeded`);
@@ -18,18 +226,19 @@ async function expectCustomError(promise, signature) {
       return;
     }
 
-    const nameMatch = signature.match(/\.([^(]+)\(/) || signature.match(/^([^(]+)\(/);
-    const componentMatch = signature.match(/"([^"\"]+)"/);
-    const errorName = nameMatch ? nameMatch[1] : null;
+    if (tryDecodeCustomError(error, errorName, args)) {
+      return;
+    }
+
     if (!errorName || !message.includes(errorName)) {
       assert.fail(`Expected error to include ${signature}, got ${message}`);
     }
 
-    if (!componentMatch) {
+    if (args.length === 0) {
       return;
     }
 
-    const component = componentMatch[1];
+    const component = stripQuotes(args[0]);
     const asciiHex = web3.utils.asciiToHex(component);
     const paddedHex = web3.utils.padRight(asciiHex, 66);
     const normalized = message.toLowerCase();
