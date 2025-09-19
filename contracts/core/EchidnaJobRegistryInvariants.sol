@@ -158,6 +158,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         jobSecrets[jobId] = bytes32(0);
 
         // slither-disable-next-line reentrancy-no-eth
+        // solhint-disable-next-line no-empty-blocks
         try jobRegistry.finalizeJob(jobId, success) {
             // already staged state
         } catch {
@@ -207,6 +208,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         jobSecrets[jobId] = bytes32(0);
 
         // slither-disable-next-line reentrancy-no-eth
+        // solhint-disable-next-line no-empty-blocks
         try jobRegistry.resolveDispute(jobId, slashWorker, slashAmount, int256(rawReputation)) {
             // already staged state
         } catch {

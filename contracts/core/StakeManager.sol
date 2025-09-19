@@ -94,7 +94,7 @@ contract StakeManager is Ownable {
         require(lockedAmounts[account] >= total, "StakeManager: exceeds locked");
         if (slashAmount > 0) {
             address recipient = feeRecipient;
-            require(recipient != address(0), "StakeManager: fee recipient unset");
+            require(recipient != address(0), "StakeManager: fee recipient");
             lockedAmounts[account] -= slashAmount;
             totalDeposits[account] -= slashAmount;
             stakeToken.safeTransfer(recipient, slashAmount);
@@ -109,7 +109,7 @@ contract StakeManager is Ownable {
     function slashStake(address account, uint256 amount) external onlyJobRegistry {
         require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
         address recipient = feeRecipient;
-        require(recipient != address(0), "StakeManager: fee recipient unset");
+        require(recipient != address(0), "StakeManager: fee recipient");
         lockedAmounts[account] -= amount;
         totalDeposits[account] -= amount;
         stakeToken.safeTransfer(recipient, amount);

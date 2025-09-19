@@ -118,7 +118,7 @@ contract('StakeManager', (accounts) => {
 
       await expectRevert(
         this.manager.settleStake(staker, '0', '50', { from: registry }),
-        'StakeManager: fee recipient unset'
+        'StakeManager: fee recipient'
       );
       await this.manager.setFeeRecipient(feeRecipient, { from: owner });
 
