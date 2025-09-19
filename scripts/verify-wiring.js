@@ -13,14 +13,6 @@ module.exports = async function (callback) {
     const jr = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
     const modules = await jr.modules();
-    const actual = {
-      identity: modules.identity,
-      staking: modules.staking,
-      validation: modules.validation,
-      dispute: modules.dispute,
-      reputation: modules.reputation,
-      feePool: modules.feePool,
-    };
     const expectEq = (lhs, rhs, label) => {
       const left = lhs.toLowerCase();
       if (left === ZERO_ADDRESS) {
@@ -38,12 +30,16 @@ module.exports = async function (callback) {
     const reputation = await ReputationEngine.deployed();
     const feePool = await FeePool.deployed();
 
-    expectEq(actual.identity, identity.address, 'identity');
-    expectEq(actual.staking, staking.address, 'staking');
-    expectEq(actual.validation, validation.address, 'validation');
-    expectEq(actual.dispute, dispute.address, 'dispute');
-    expectEq(actual.reputation, reputation.address, 'reputation');
-    expectEq(actual.feePool, feePool.address, 'feePool');
+    [
+      ['identity', modules.identity, identity.address],
+      ['staking', modules.staking, staking.address],
+      ['validation', modules.validation, validation.address],
+      ['dispute', modules.dispute, dispute.address],
+      ['reputation', modules.reputation, reputation.address],
+      ['feePool', modules.feePool, feePool.address],
+    ].forEach(([label, actual, expected]) => {
+      expectEq(actual, expected, label);
+    });
 
     expectEq(await staking.jobRegistry(), jr.address, 'staking.jobRegistry');
     expectEq(await feePool.jobRegistry(), jr.address, 'feePool.jobRegistry');
