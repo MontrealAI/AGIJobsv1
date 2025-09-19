@@ -87,7 +87,10 @@ contract StakeManager is Ownable {
         emit Released(account, amount);
     }
 
-    /// @notice Burns a portion of locked stake.
+    /// @notice Settles a job by slashing and/or releasing locked stake.
+    /// @param account Worker whose stake is being adjusted.
+    /// @param releaseAmount Portion of stake released back to the available balance.
+    /// @param slashAmount Portion of stake transferred to the fee recipient.
     function settleStake(address account, uint256 releaseAmount, uint256 slashAmount) external onlyJobRegistry {
         require(releaseAmount + slashAmount > 0, "StakeManager: nothing to settle");
         uint256 total = releaseAmount + slashAmount;
@@ -106,6 +109,9 @@ contract StakeManager is Ownable {
         }
     }
 
+    /// @notice Slashes locked stake and forwards it to the fee recipient.
+    /// @param account Worker whose locked stake is being slashed.
+    /// @param amount Amount of stake to slash.
     function slashStake(address account, uint256 amount) external onlyJobRegistry {
         require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
         address recipient = feeRecipient;
@@ -117,6 +123,8 @@ contract StakeManager is Ownable {
     }
 
     /// @notice Computes the amount of stake available for locking.
+    /// @param account Worker whose available stake is being queried.
+    /// @return Amount of unlocked stake that can be locked for jobs.
     function availableStake(address account) public view returns (uint256) {
         return totalDeposits[account] - lockedAmounts[account];
     }
