@@ -8,6 +8,44 @@ const ReputationEngine = artifacts.require('ReputationEngine');
 const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
 
+async function expectCustomError(promise, signature) {
+  try {
+    await promise;
+    assert.fail(`Expected custom error ${signature} but call succeeded`);
+  } catch (error) {
+    const message = error.message || '';
+    if (message.includes(signature)) {
+      return;
+    }
+
+    const nameMatch = signature.match(/\.([^(]+)\(/) || signature.match(/^([^(]+)\(/);
+    const componentMatch = signature.match(/"([^"\"]+)"/);
+    const errorName = nameMatch ? nameMatch[1] : null;
+    if (!errorName || !message.includes(errorName)) {
+      assert.fail(`Expected error to include ${signature}, got ${message}`);
+    }
+
+    if (!componentMatch) {
+      return;
+    }
+
+    const component = componentMatch[1];
+    const asciiHex = web3.utils.asciiToHex(component);
+    const paddedHex = web3.utils.padRight(asciiHex, 66);
+    const normalized = message.toLowerCase();
+    if (
+      normalized.includes(component.toLowerCase()) ||
+      normalized.includes(asciiHex.toLowerCase()) ||
+      normalized.includes(paddedHex.toLowerCase()) ||
+      normalized.includes(paddedHex.slice(2).toLowerCase())
+    ) {
+      return;
+    }
+
+    assert.fail(`Expected error to include ${signature}, got ${message}`);
+  }
+}
+
 contract('JobRegistry', (accounts) => {
   const [deployer, worker, client, stranger, feeToken, burnAddress, stakeToken] = accounts;
 
@@ -325,5 +363,99 @@ contract('JobRegistry', (accounts) => {
       slashAmount: web3.utils.toBN(0),
     });
     assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
+  });
+
+  describe('configuration gating', () => {
+    beforeEach(async function () {
+      this.identity = await IdentityRegistry.new({ from: deployer });
+      this.stakeManager = await StakeManager.new(stakeToken, 18, { from: deployer });
+      this.feePool = await FeePool.new(feeToken, burnAddress, { from: deployer });
+      this.validation = await ValidationModule.new({ from: deployer });
+      this.dispute = await DisputeModule.new({ from: deployer });
+      this.reputation = await ReputationEngine.new({ from: deployer });
+      this.jobRegistry = await JobRegistry.new({ from: deployer });
+    });
+
+    it('reports configuration status across lifecycle phases', async function () {
+      const initial = await this.jobRegistry.configurationStatus();
+      assert.isFalse(initial.modulesConfigured);
+      assert.isFalse(initial.timingsConfigured);
+      assert.isFalse(initial.thresholdsConfigured);
+      assert.isFalse(await this.jobRegistry.isFullyConfigured());
+
+      await this.jobRegistry.setModules(
+        {
+          identity: this.identity.address,
+          staking: this.stakeManager.address,
+          validation: this.validation.address,
+          dispute: this.dispute.address,
+          reputation: this.reputation.address,
+          feePool: this.feePool.address,
+        },
+        { from: deployer }
+      );
+
+      const afterModules = await this.jobRegistry.configurationStatus();
+      assert.isTrue(afterModules.modulesConfigured);
+      assert.isFalse(afterModules.timingsConfigured);
+      assert.isFalse(afterModules.thresholdsConfigured);
+      assert.isFalse(await this.jobRegistry.isFullyConfigured());
+
+      await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
+      const afterTimings = await this.jobRegistry.configurationStatus();
+      assert.isTrue(afterTimings.modulesConfigured);
+      assert.isTrue(afterTimings.timingsConfigured);
+      assert.isFalse(afterTimings.thresholdsConfigured);
+      assert.isFalse(await this.jobRegistry.isFullyConfigured());
+
+      await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
+      const afterThresholds = await this.jobRegistry.configurationStatus();
+      assert.isTrue(afterThresholds.modulesConfigured);
+      assert.isTrue(afterThresholds.timingsConfigured);
+      assert.isTrue(afterThresholds.thresholdsConfigured);
+      assert.isTrue(await this.jobRegistry.isFullyConfigured());
+    });
+
+    it('prevents lifecycle interactions until fully configured', async function () {
+      await expectCustomError(
+        this.jobRegistry.createJob('100', { from: client }),
+        'JobRegistry.NotConfigured("modules")'
+      );
+
+      await this.jobRegistry.setModules(
+        {
+          identity: this.identity.address,
+          staking: this.stakeManager.address,
+          validation: this.validation.address,
+          dispute: this.dispute.address,
+          reputation: this.reputation.address,
+          feePool: this.feePool.address,
+        },
+        { from: deployer }
+      );
+
+      await expectCustomError(
+        this.jobRegistry.createJob('100', { from: client }),
+        'JobRegistry.NotConfigured("timings")'
+      );
+
+      await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
+
+      await expectCustomError(
+        this.jobRegistry.createJob('100', { from: client }),
+        'JobRegistry.NotConfigured("thresholds")'
+      );
+
+      await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
+
+      await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
+      await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });
+      await this.dispute.setJobRegistry(this.jobRegistry.address, { from: deployer });
+      await this.reputation.setJobRegistry(this.jobRegistry.address, { from: deployer });
+      await this.stakeManager.deposit('150', { from: worker });
+
+      const receipt = await this.jobRegistry.createJob('150', { from: client });
+      expectEvent(receipt, 'JobCreated', { client });
+    });
   });
 });
