@@ -233,7 +233,10 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         if (slashWorker) {
             uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / BPS_DENOMINATOR;
             if (slashAmount > maxSlash) revert("JobRegistry: slash bounds");
-            StakeManager(_modules.staking).slashStake(job.worker, slashAmount);
+            if (slashAmount > job.stakeAmount) revert("JobRegistry: slash exceeds stake");
+
+            uint256 releaseAmount = job.stakeAmount - slashAmount;
+            StakeManager(_modules.staking).settleStake(job.worker, releaseAmount, slashAmount);
         } else {
             StakeManager(_modules.staking).releaseStake(job.worker, job.stakeAmount);
         }

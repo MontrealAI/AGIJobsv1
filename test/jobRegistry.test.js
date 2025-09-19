@@ -597,17 +597,28 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.raiseDispute(jobId, { from: client });
 
     const poolBalanceBeforeSlash = await this.token.balanceOf(this.feePool.address);
-    const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, 300, -5, {
+    const depositsBeforeSlash = await this.stakeManager.totalDeposits(worker);
+    const slashAmount = web3.utils.toBN(300);
+    const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, slashAmount, -5, {
       from: deployer,
     });
     expectEvent(slashReceipt, 'DisputeResolved', {
       slashed: true,
-      slashAmount: web3.utils.toBN(300),
+      slashAmount,
     });
     const poolBalanceAfterSlash = await this.token.balanceOf(this.feePool.address);
     assert.strictEqual(
       poolBalanceAfterSlash.sub(poolBalanceBeforeSlash).toString(),
-      web3.utils.toBN(300).toString()
+      slashAmount.toString()
+    );
+
+    const lockedAfterSlash = await this.stakeManager.lockedAmounts(worker);
+    assert.strictEqual(lockedAfterSlash.toString(), '0');
+
+    const depositsAfterSlash = await this.stakeManager.totalDeposits(worker);
+    assert.strictEqual(
+      depositsBeforeSlash.sub(slashAmount).toString(),
+      depositsAfterSlash.toString()
     );
 
     await this.stakeManager.deposit('400', { from: worker });
