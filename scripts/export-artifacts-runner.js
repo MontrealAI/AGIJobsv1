@@ -1,51 +1,66 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'inherit', ...options });
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+      }
+    });
+    child.on('error', (error) => reject(error));
+  });
+}
+
+async function stopProcess(proc) {
+  if (!proc || proc.killed) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    proc.once('exit', resolve);
+    proc.kill('SIGINT');
+  });
+}
+
 async function run() {
   const network = process.env.NETWORK || 'development';
-
   const ganache = spawn(path.join('node_modules', '.bin', 'ganache'), [
     '--chain.networkId',
     '5777',
     '--wallet.totalAccounts',
     '10',
-  ]);
+  ], {
+    stdio: 'inherit',
+  });
 
-  ganache.stdout.pipe(process.stdout);
-  ganache.stderr.pipe(process.stderr);
+  try {
+    await wait(3000);
 
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  await wait(3000);
-
-  await new Promise((resolve, reject) => {
-    const migrate = spawn('npx', ['truffle', 'migrate', '--reset', '--network', network], {
-      stdio: 'inherit',
+    await runCommand('npx', ['truffle', 'migrate', '--reset', '--network', network], {
       env: { ...process.env, TRUFFLE_TEST: 'true' },
     });
-    migrate.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`truffle migrate exited with code ${code}`));
-      }
-    });
-  });
 
-  await new Promise((resolve, reject) => {
-    const exec = spawn('npx', ['truffle', 'exec', 'scripts/export-addresses.js', '--network', network], {
-      stdio: 'inherit',
+    await runCommand('npx', ['truffle', 'exec', 'scripts/export-addresses.js', '--network', network], {
       env: { ...process.env, NETWORK: network },
     });
-    exec.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`truffle exec exited with code ${code}`));
-      }
-    });
-  });
 
-  ganache.kill('SIGINT');
+    await runCommand('node', ['scripts/export-abis.js'], {
+      env: process.env,
+    });
+  } catch (error) {
+    console.error(error);
+    process.exitCode = 1;
+  } finally {
+    await stopProcess(ganache);
+  }
 }
 
 run().catch((error) => {

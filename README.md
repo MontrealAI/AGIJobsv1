@@ -33,6 +33,8 @@ npm run verify:sepolia
 npm run export:artifacts
 ```
 
+`npm run export:artifacts` performs a deterministic local migration, exports network-specific addresses, and generates sanitized ABI bundles under `artifacts-public/`. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
+
 ### GitHub Actions secrets
 
 Deployments from CI require the following repository secrets so migrations can transfer ownership correctly:
