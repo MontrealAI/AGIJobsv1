@@ -32,7 +32,7 @@ Use imperative mood and keep the summary under 72 characters. Examples: `feat: a
 
 ## Coding Standards
 
-- Solidity files must include SPDX identifiers and use pragma `^0.8.20` or the locked compiler version defined in `truffle-config.js`.
+- Solidity files must include SPDX identifiers and use pragma `^0.8.23` or the locked compiler version defined in `truffle-config.js`.
 - Run `npm run fmt` before committing to ensure consistent formatting.
 - Keep functions short and focused; prefer descriptive revert messages.
 - Add NatSpec comments to public and external functions.

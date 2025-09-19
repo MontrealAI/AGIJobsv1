@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.23;
 
 import {Ownable} from "../libs/Ownable.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
@@ -155,6 +155,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         _requireModulesConfigured();
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Created);
+        // slither-disable-next-line timestamp
         if (block.timestamp > job.commitDeadline) revert WindowExpired("commit");
 
         job.worker = msg.sender;
@@ -168,6 +169,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     function revealJob(uint256 jobId, bytes32 commitSecret) external {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Committed);
+        // slither-disable-next-line timestamp
         if (block.timestamp > job.revealDeadline) revert WindowExpired("reveal");
         require(job.worker == msg.sender, "JobRegistry: not worker");
         require(job.commitHash == keccak256(abi.encodePacked(commitSecret)), "JobRegistry: commit mismatch");
@@ -206,6 +208,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         if (job.state != JobState.Revealed && job.state != JobState.Committed) {
             revert InvalidState(JobState.Revealed, job.state);
         }
+        // slither-disable-next-line timestamp
         if (block.timestamp > job.disputeDeadline) revert WindowExpired("dispute");
         if (!_isAuthorizedDisputeRaiser(job, msg.sender)) {
             revert UnauthorizedDisputeRaiser(jobId, msg.sender);
