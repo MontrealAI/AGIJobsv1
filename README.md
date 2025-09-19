@@ -11,6 +11,8 @@ npm run test
 npm run coverage
 ```
 
+`npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate.
+
 ## Configure
 
 ```bash

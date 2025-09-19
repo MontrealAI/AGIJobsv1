@@ -14,7 +14,7 @@ Thank you for your interest in contributing to AGIJobsv1. This repository hosts 
 1. Fork the repository and create a feature branch from `main`.
 2. Install dependencies with `npm ci`.
 3. Run `npm run build` and ensure compilation succeeds.
-4. Add or update unit tests with `npm run test` and `npm run coverage`.
+4. Add or update unit tests with `npm run test` and `npm run coverage` (the coverage gate enforces ≥90% across lines, branches, and functions).
 5. Run static analysis: `npm run lint:sol` and applicable security tooling.
 6. Submit a pull request describing the motivation and testing performed.
 
