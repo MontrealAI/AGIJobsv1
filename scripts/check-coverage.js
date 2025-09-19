@@ -1,84 +1,134 @@
 const fs = require('fs');
 const path = require('path');
 
-const THRESHOLD = Number(process.env.COVERAGE_THRESHOLD || 90);
-const coverageDir = path.join(__dirname, '..', 'coverage');
-const summaryPath = path.join(coverageDir, 'coverage-summary.json');
-let totals;
+const DEFAULT_THRESHOLD = 90;
 
-if (fs.existsSync(summaryPath)) {
-  const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-  totals = summary.total;
-} else {
-  const finalPath = path.join(coverageDir, 'coverage-final.json');
-  if (!fs.existsSync(finalPath)) {
-    console.error('Coverage reports not found in', coverageDir);
-    process.exit(1);
+function parseArgs(argv) {
+  const tokens = Array.isArray(argv) ? [...argv] : [];
+  let minValue;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+
+    if (token === '--min' || token === '-m') {
+      if (index + 1 >= tokens.length) {
+        throw new Error('Missing value for --min option');
+      }
+      minValue = tokens[index + 1];
+      index += 1;
+    } else if (token.startsWith('--min=')) {
+      minValue = token.slice('--min='.length);
+    }
   }
 
-  const data = JSON.parse(fs.readFileSync(finalPath, 'utf8'));
-  const aggregate = {
-    lines: { covered: 0, total: 0 },
-    branches: { covered: 0, total: 0 },
-    functions: { covered: 0, total: 0 },
-  };
+  const fallback = process.env.COVERAGE_THRESHOLD;
+  const thresholdSource =
+    minValue !== undefined ? minValue : fallback !== undefined ? fallback : DEFAULT_THRESHOLD;
+  const threshold = Number(thresholdSource);
 
-  Object.values(data).forEach((entry) => {
-    const lineHits = entry.l ? Object.values(entry.l) : [];
-    aggregate.lines.covered += lineHits.filter((hits) => hits > 0).length;
-    aggregate.lines.total += lineHits.length;
+  if (!Number.isFinite(threshold)) {
+    throw new Error('Coverage threshold must be a finite number');
+  }
 
-    const branchHits = entry.b ? Object.values(entry.b) : [];
-    branchHits.forEach((hits) => {
-      hits.forEach((hit) => {
-        aggregate.branches.total += 1;
-        if (hit > 0) {
-          aggregate.branches.covered += 1;
-        }
-      });
-    });
+  return { min: threshold };
+}
 
-    const functionHits = entry.f ? Object.values(entry.f) : [];
-    aggregate.functions.covered += functionHits.filter((hits) => hits > 0).length;
-    aggregate.functions.total += functionHits.length;
+function aggregateLcov(content) {
+  const lines = content.split(/\r?\n/);
+  let totalLines = 0;
+  let coveredLines = 0;
+
+  lines.forEach((line) => {
+    if (line.startsWith('LF:')) {
+      const value = Number(line.slice(3));
+      if (Number.isFinite(value)) {
+        totalLines += value;
+      }
+    } else if (line.startsWith('LH:')) {
+      const value = Number(line.slice(3));
+      if (Number.isFinite(value)) {
+        coveredLines += value;
+      }
+    }
   });
 
-  totals = {
-    lines: {
-      pct: aggregate.lines.total
-        ? (aggregate.lines.covered / aggregate.lines.total) * 100
-        : 100,
-    },
-    branches: {
-      pct: aggregate.branches.total
-        ? (aggregate.branches.covered / aggregate.branches.total) * 100
-        : 100,
-    },
-    functions: {
-      pct: aggregate.functions.total
-        ? (aggregate.functions.covered / aggregate.functions.total) * 100
-        : 100,
-    },
-  };
+  return { totalLines, coveredLines };
 }
 
-const metrics = [
-  ['lines', totals.lines?.pct],
-  ['branches', totals.branches?.pct],
-  ['functions', totals.functions?.pct],
-];
+function checkCoverage(options = {}) {
+  const coverageDir = options.coverageDir || path.join(__dirname, '..', 'coverage');
+  const lcovPath = options.lcovPath || path.join(coverageDir, 'lcov.info');
 
-const failures = metrics
-  .filter(([, value]) => typeof value === 'number' && value < THRESHOLD)
-  .map(([name, value]) => `${name} coverage ${value}% is below required ${THRESHOLD}%`);
+  if (!fs.existsSync(lcovPath)) {
+    throw new Error(`Coverage report not found at ${lcovPath}`);
+  }
 
-if (failures.length > 0) {
-  failures.forEach((msg) => console.error(msg));
-  process.exit(1);
+  const content = fs.readFileSync(lcovPath, 'utf8');
+  const { totalLines, coveredLines } = aggregateLcov(content);
+  const pct = totalLines === 0 ? 100 : (coveredLines / totalLines) * 100;
+
+  return { totalLines, coveredLines, pct, lcovPath };
 }
 
-console.log('Coverage thresholds met:',
-  metrics
-    .map(([name, value]) => `${name}=${value?.toFixed?.(2) ?? 'n/a'}%`)
-    .join(', ')
-);
+function formatPercentage(value) {
+  if (!Number.isFinite(value)) {
+    return 'n/a';
+  }
+  return value.toFixed(2);
+}
+
+function main(argv) {
+  let threshold;
+
+  try {
+    const args = parseArgs(argv);
+    threshold = args.min;
+  } catch (error) {
+    console.error(error.message);
+    return false;
+  }
+
+  let result;
+
+  try {
+    result = checkCoverage();
+  } catch (error) {
+    console.error(error.message);
+    return false;
+  }
+
+  const { pct, totalLines, coveredLines, lcovPath } = result;
+
+  if (!Number.isFinite(pct)) {
+    console.error(`Unable to determine coverage percentage from ${lcovPath}`);
+    return false;
+  }
+
+  if (pct < threshold) {
+    console.error(
+      `Line coverage ${formatPercentage(pct)}% is below required minimum of ${threshold}%`
+    );
+    console.error(`Covered ${coveredLines} out of ${totalLines} lines.`);
+    return false;
+  }
+
+  console.log(
+    `Coverage threshold met: ${formatPercentage(pct)}% (covered ${coveredLines}/${totalLines} lines)`
+  );
+  return true;
+}
+
+if (require.main === module) {
+  const success = main(process.argv.slice(2));
+  if (!success) {
+    process.exit(1);
+  }
+}
+
+module.exports = {
+  aggregateLcov,
+  checkCoverage,
+  main,
+  parseArgs,
+  formatPercentage,
+};
