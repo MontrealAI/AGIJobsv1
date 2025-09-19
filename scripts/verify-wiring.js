@@ -11,9 +11,14 @@ const params = require('../config/params.json');
 module.exports = async function (callback) {
   try {
     const jr = await JobRegistry.deployed();
+    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
     const modules = await jr.modules();
     const expectEq = (lhs, rhs, label) => {
-      if (lhs.toLowerCase() !== rhs.toLowerCase()) {
+      const left = lhs.toLowerCase();
+      if (left === ZERO_ADDRESS) {
+        throw new Error(`Zero address for ${label}`);
+      }
+      if (left !== rhs.toLowerCase()) {
         throw new Error(`Mismatch for ${label}: ${lhs} !== ${rhs}`);
       }
     };
@@ -25,12 +30,16 @@ module.exports = async function (callback) {
     const reputation = await ReputationEngine.deployed();
     const feePool = await FeePool.deployed();
 
-    expectEq(modules.identity, identity.address, 'identity');
-    expectEq(modules.staking, staking.address, 'staking');
-    expectEq(modules.validation, validation.address, 'validation');
-    expectEq(modules.dispute, dispute.address, 'dispute');
-    expectEq(modules.reputation, reputation.address, 'reputation');
-    expectEq(modules.feePool, feePool.address, 'feePool');
+    [
+      ['identity', modules.identity, identity.address],
+      ['staking', modules.staking, staking.address],
+      ['validation', modules.validation, validation.address],
+      ['dispute', modules.dispute, dispute.address],
+      ['reputation', modules.reputation, reputation.address],
+      ['feePool', modules.feePool, feePool.address],
+    ].forEach(([label, actual, expected]) => {
+      expectEq(actual, expected, label);
+    });
 
     expectEq(await staking.jobRegistry(), jr.address, 'staking.jobRegistry');
     expectEq(await feePool.jobRegistry(), jr.address, 'feePool.jobRegistry');
