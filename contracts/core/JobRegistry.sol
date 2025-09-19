@@ -191,15 +191,20 @@ contract JobRegistry is Ownable, ReentrancyGuard {
 
         job.state = JobState.Finalized;
 
+        StakeManager staking = StakeManager(_modules.staking);
+
         if (slashWorker) {
             uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / BPS_DENOMINATOR;
             if (slashAmount > maxSlash) revert("JobRegistry: slash bounds");
-            StakeManager(_modules.staking).slashStake(job.worker, slashAmount);
+
+            uint256 releaseAmount = job.stakeAmount > slashAmount ? job.stakeAmount - slashAmount : 0;
+            staking.settleStake(job.worker, releaseAmount, slashAmount);
+
             if (slashAmount > 0) {
                 FeePool(_modules.feePool).recordFee(slashAmount);
             }
         } else {
-            StakeManager(_modules.staking).releaseStake(job.worker, job.stakeAmount);
+            staking.settleStake(job.worker, job.stakeAmount, 0);
         }
 
         if (reputationDelta != 0) {
