@@ -146,13 +146,25 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         JobRegistry.Thresholds memory thresholds = _getThresholds();
         uint256 feeAmount = (job.stakeAmount * thresholds.feeBps) / jobRegistry.BPS_DENOMINATOR();
 
+        uint256 previousExpectedFees = expectedFees;
+        bool previousJobCompleted = jobCompleted[jobId];
+        address previousJobWorker = jobWorkers[jobId];
+        bytes32 previousJobSecret = jobSecrets[jobId];
+
+        // Pre-write exists to satisfy the static analyzer and retain explicit reentrancy protection.
+        expectedFees = previousExpectedFees + feeAmount;
+        jobCompleted[jobId] = true;
+        jobWorkers[jobId] = address(0);
+        jobSecrets[jobId] = bytes32(0);
+
         // slither-disable-next-line reentrancy-no-eth
         try jobRegistry.finalizeJob(jobId, success) {
-            expectedFees += feeAmount;
-            jobCompleted[jobId] = true;
-            jobWorkers[jobId] = address(0);
-            jobSecrets[jobId] = bytes32(0);
+            // already staged state
         } catch {
+            expectedFees = previousExpectedFees;
+            jobCompleted[jobId] = previousJobCompleted;
+            jobWorkers[jobId] = previousJobWorker;
+            jobSecrets[jobId] = previousJobSecret;
             return;
         }
     }
@@ -185,12 +197,22 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / jobRegistry.BPS_DENOMINATOR();
         uint256 slashAmount = maxSlash > 0 ? uint256(rawSlash) % (maxSlash + 1) : 0;
 
+        bool previousJobCompleted = jobCompleted[jobId];
+        address previousJobWorker = jobWorkers[jobId];
+        bytes32 previousJobSecret = jobSecrets[jobId];
+
+        // Pre-write exists to satisfy the static analyzer and retain explicit reentrancy protection.
+        jobCompleted[jobId] = true;
+        jobWorkers[jobId] = address(0);
+        jobSecrets[jobId] = bytes32(0);
+
         // slither-disable-next-line reentrancy-no-eth
         try jobRegistry.resolveDispute(jobId, slashWorker, slashAmount, int256(rawReputation)) {
-            jobCompleted[jobId] = true;
-            jobWorkers[jobId] = address(0);
-            jobSecrets[jobId] = bytes32(0);
+            // already staged state
         } catch {
+            jobCompleted[jobId] = previousJobCompleted;
+            jobWorkers[jobId] = previousJobWorker;
+            jobSecrets[jobId] = previousJobSecret;
             return;
         }
     }
