@@ -9,12 +9,12 @@ const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
 
 contract('JobRegistry', (accounts) => {
-  const [deployer, worker, client, stranger] = accounts;
+  const [deployer, worker, client, stranger, feeToken, burnAddress, stakeToken] = accounts;
 
   beforeEach(async function () {
     this.identity = await IdentityRegistry.new({ from: deployer });
-    this.stakeManager = await StakeManager.new(constants.ZERO_ADDRESS, 18, { from: deployer });
-    this.feePool = await FeePool.new(constants.ZERO_ADDRESS, constants.ZERO_ADDRESS, { from: deployer });
+    this.stakeManager = await StakeManager.new(stakeToken, 18, { from: deployer });
+    this.feePool = await FeePool.new(feeToken, burnAddress, { from: deployer });
     this.validation = await ValidationModule.new({ from: deployer });
     this.dispute = await DisputeModule.new({ from: deployer });
     this.reputation = await ReputationEngine.new({ from: deployer });
@@ -28,7 +28,7 @@ contract('JobRegistry', (accounts) => {
         validation: this.validation.address,
         dispute: this.dispute.address,
         reputation: this.reputation.address,
-        feePool: this.feePool.address
+        feePool: this.feePool.address,
       },
       { from: deployer }
     );
@@ -57,6 +57,16 @@ contract('JobRegistry', (accounts) => {
     assert.strictEqual(await this.reputation.jobRegistry(), this.jobRegistry.address);
   });
 
+  it('rejects raiseDispute calls from invalid states', async function () {
+    await expectRevert.unspecified(this.jobRegistry.raiseDispute(1, { from: client }));
+
+    await this.stakeManager.deposit(web3.utils.toBN('100'), { from: worker });
+    const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('100'), { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+  });
+
   it('runs through a happy path lifecycle', async function () {
     const stakeAmount = web3.utils.toBN('1000');
     await this.stakeManager.deposit(stakeAmount, { from: worker });
@@ -79,6 +89,21 @@ contract('JobRegistry', (accounts) => {
 
     const locked = await this.stakeManager.lockedAmounts(worker);
     assert.isTrue(locked.isZero(), 'stake should be unlocked');
+  });
+
+  it('finalizes without fees when fee bps is zero', async function () {
+    await this.jobRegistry.setThresholds(6000, 1, 11, 0, 2000, { from: deployer });
+    await this.stakeManager.deposit(web3.utils.toBN('100'), { from: worker });
+    const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('100'), { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+
+    const finalizeReceipt = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
+    expectEvent(finalizeReceipt, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
   });
 
   it('enforces commit window', async function () {
@@ -117,7 +142,7 @@ contract('JobRegistry', (accounts) => {
           validation: this.validation.address,
           dispute: this.dispute.address,
           reputation: this.reputation.address,
-          feePool: this.feePool.address
+          feePool: this.feePool.address,
         },
         { from: deployer }
       ),
@@ -132,7 +157,7 @@ contract('JobRegistry', (accounts) => {
           validation: this.validation.address,
           dispute: this.dispute.address,
           reputation: this.reputation.address,
-          feePool: this.feePool.address
+          feePool: this.feePool.address,
         },
         { from: deployer }
       ),
@@ -147,14 +172,17 @@ contract('JobRegistry', (accounts) => {
           validation: this.validation.address,
           dispute: this.dispute.address,
           reputation: this.reputation.address,
-          feePool: constants.ZERO_ADDRESS
+          feePool: constants.ZERO_ADDRESS,
         },
         { from: deployer }
       ),
       'JobRegistry: feePool'
     );
 
-    await expectRevert(this.jobRegistry.setTimings(0, 1, 1, { from: deployer }), 'JobRegistry: timings');
+    await expectRevert(
+      this.jobRegistry.setTimings(0, 1, 1, { from: deployer }),
+      'JobRegistry: timings'
+    );
     await expectRevert(
       this.jobRegistry.setThresholds(6000, 0, 11, 250, 2000, { from: deployer }),
       'JobRegistry: quorum'
@@ -170,7 +198,10 @@ contract('JobRegistry', (accounts) => {
   });
 
   it('validates lifecycle error paths', async function () {
-    await expectRevert(this.jobRegistry.createJob('0', { from: client }), 'JobRegistry: stake amount');
+    await expectRevert(
+      this.jobRegistry.createJob('0', { from: client }),
+      'JobRegistry: stake amount'
+    );
 
     await this.jobRegistry.setTimings(2, 2, 5, { from: deployer });
     await this.stakeManager.deposit('200', { from: worker });
@@ -180,9 +211,7 @@ contract('JobRegistry', (accounts) => {
     const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
     await this.jobRegistry.commitJob(jobId, hash, { from: worker });
 
-    await expectRevert.unspecified(
-      this.jobRegistry.commitJob(jobId, hash, { from: worker })
-    );
+    await expectRevert.unspecified(this.jobRegistry.commitJob(jobId, hash, { from: worker }));
 
     await expectRevert(
       this.jobRegistry.revealJob(jobId, secret, { from: stranger }),
@@ -195,9 +224,7 @@ contract('JobRegistry', (accounts) => {
     );
 
     await time.increase(5);
-    await expectRevert.unspecified(
-      this.jobRegistry.revealJob(jobId, secret, { from: worker })
-    );
+    await expectRevert.unspecified(this.jobRegistry.revealJob(jobId, secret, { from: worker }));
   });
 
   it('handles finalize and dispute windows across branches', async function () {
@@ -212,9 +239,7 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.commitJob(jobId, hash, { from: worker });
     await this.jobRegistry.revealJob(jobId, secret, { from: worker });
 
-    await expectRevert.unspecified(
-      this.jobRegistry.finalizeJob(jobId, true, { from: stranger })
-    );
+    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: stranger }));
 
     const finalizeZeroFee = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
     expectEvent(finalizeZeroFee, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
@@ -257,8 +282,13 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.revealJob(jobId, secret, { from: worker });
     await this.jobRegistry.raiseDispute(jobId, { from: client });
 
-    const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, 300, -5, { from: deployer });
-    expectEvent(slashReceipt, 'DisputeResolved', { slashed: true, slashAmount: web3.utils.toBN(300) });
+    const slashReceipt = await this.jobRegistry.resolveDispute(jobId, true, 300, -5, {
+      from: deployer,
+    });
+    expectEvent(slashReceipt, 'DisputeResolved', {
+      slashed: true,
+      slashAmount: web3.utils.toBN(300),
+    });
 
     await this.stakeManager.deposit('400', { from: worker });
     const next = await this.jobRegistry.createJob('400', { from: client });
@@ -269,8 +299,31 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.revealJob(jobId2, secret2, { from: worker });
     await this.jobRegistry.raiseDispute(jobId2, { from: client });
 
-    const releaseReceipt = await this.jobRegistry.resolveDispute(jobId2, false, 0, 7, { from: deployer });
-    expectEvent(releaseReceipt, 'DisputeResolved', { slashed: false, slashAmount: web3.utils.toBN(0) });
+    const releaseReceipt = await this.jobRegistry.resolveDispute(jobId2, false, 0, 7, {
+      from: deployer,
+    });
+    expectEvent(releaseReceipt, 'DisputeResolved', {
+      slashed: false,
+      slashAmount: web3.utils.toBN(0),
+    });
+    assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
+
+    await this.stakeManager.deposit('500', { from: worker });
+    const neutral = await this.jobRegistry.createJob('500', { from: client });
+    const jobId3 = neutral.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const neutralSecret = web3.utils.randomHex(32);
+    const neutralHash = web3.utils.soliditySha3({ type: 'bytes32', value: neutralSecret });
+    await this.jobRegistry.commitJob(jobId3, neutralHash, { from: worker });
+    await this.jobRegistry.revealJob(jobId3, neutralSecret, { from: worker });
+    await this.jobRegistry.raiseDispute(jobId3, { from: client });
+
+    const neutralReceipt = await this.jobRegistry.resolveDispute(jobId3, false, 0, 0, {
+      from: deployer,
+    });
+    expectEvent(neutralReceipt, 'DisputeResolved', {
+      slashed: false,
+      slashAmount: web3.utils.toBN(0),
+    });
     assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
   });
 });

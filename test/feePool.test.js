@@ -2,18 +2,33 @@ const { expectEvent, expectRevert, constants } = require('@openzeppelin/test-hel
 const FeePool = artifacts.require('FeePool');
 
 contract('FeePool', (accounts) => {
-  const [owner, registry, stranger] = accounts;
+  const [owner, registry, stranger, , , , , , burnAddress, feeToken] = accounts;
 
   beforeEach(async function () {
-    this.pool = await FeePool.new(constants.ZERO_ADDRESS, constants.ZERO_ADDRESS, { from: owner });
+    this.pool = await FeePool.new(feeToken, burnAddress, { from: owner });
   });
 
   it('sets the job registry with owner checks', async function () {
     await expectRevert(this.pool.setJobRegistry(constants.ZERO_ADDRESS, { from: owner }), 'FeePool: registry');
     await expectRevert(this.pool.setJobRegistry(registry, { from: registry }), 'Ownable: caller is not the owner');
 
-    await this.pool.setJobRegistry(registry, { from: owner });
+    const receipt = await this.pool.setJobRegistry(registry, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.pool.jobRegistry(), registry);
+  });
+
+  it('requires non-zero constructor arguments', async function () {
+    await expectRevert(FeePool.new(constants.ZERO_ADDRESS, burnAddress, { from: owner }), 'FeePool: token');
+    await expectRevert(FeePool.new(feeToken, constants.ZERO_ADDRESS, { from: owner }), 'FeePool: burn');
+  });
+
+  it('enforces ownership transfers', async function () {
+    await expectRevert(this.pool.transferOwnership(constants.ZERO_ADDRESS, { from: owner }), 'Ownable: zero address');
+    await expectRevert(this.pool.transferOwnership(stranger, { from: stranger }), 'Ownable: caller is not the owner');
+
+    const tx = await this.pool.transferOwnership(stranger, { from: owner });
+    expectEvent(tx, 'OwnershipTransferred', { newOwner: stranger });
+    assert.strictEqual(await this.pool.owner(), stranger);
   });
 
   it('records fees from the owner and registry and rejects invalid calls', async function () {

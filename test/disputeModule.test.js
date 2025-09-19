@@ -19,7 +19,8 @@ contract('DisputeModule', (accounts) => {
       'Ownable: caller is not the owner'
     );
 
-    await this.module.setJobRegistry(registry, { from: owner });
+    const receipt = await this.module.setJobRegistry(registry, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.module.jobRegistry(), registry);
   });
 

@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import {Ownable} from "../libs/Ownable.sol";
+import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 import {StakeManager} from "./StakeManager.sol";
 import {FeePool} from "./FeePool.sol";
 import {DisputeModule} from "./DisputeModule.sol";
@@ -9,7 +10,7 @@ import {ReputationEngine} from "./ReputationEngine.sol";
 
 /// @title JobRegistry
 /// @notice Coordinates job lifecycle, stake locking, and fee routing.
-contract JobRegistry is Ownable {
+contract JobRegistry is Ownable, ReentrancyGuard {
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
     enum JobState { None, Created, Committed, Revealed, Finalized, Disputed }
@@ -123,7 +124,7 @@ contract JobRegistry is Ownable {
         emit JobCreated(jobId, msg.sender, stakeAmount);
     }
 
-    function commitJob(uint256 jobId, bytes32 commitHash) external {
+    function commitJob(uint256 jobId, bytes32 commitHash) external nonReentrant {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Created);
         if (block.timestamp > job.commitDeadline) revert WindowExpired("commit");
@@ -147,7 +148,7 @@ contract JobRegistry is Ownable {
         emit JobRevealed(jobId, msg.sender);
     }
 
-    function finalizeJob(uint256 jobId, bool success) external onlyOwner {
+    function finalizeJob(uint256 jobId, bool success) external onlyOwner nonReentrant {
         Job storage job = jobs[jobId];
         if (job.state != JobState.Revealed && job.state != JobState.Disputed) {
             revert InvalidState(JobState.Revealed, job.state);
@@ -160,16 +161,16 @@ contract JobRegistry is Ownable {
         FeePool feePool = FeePool(_modules.feePool);
 
         uint256 releaseAmount = job.stakeAmount - feeAmount;
+        job.state = JobState.Finalized;
         staking.settleStake(job.worker, releaseAmount, feeAmount);
         if (feeAmount > 0) {
             feePool.recordFee(feeAmount);
         }
 
-        job.state = JobState.Finalized;
         emit JobFinalized(jobId, success, feeAmount);
     }
 
-    function raiseDispute(uint256 jobId) external {
+    function raiseDispute(uint256 jobId) external nonReentrant {
         Job storage job = jobs[jobId];
         if (job.state != JobState.Revealed && job.state != JobState.Committed) {
             revert InvalidState(JobState.Revealed, job.state);
@@ -183,9 +184,12 @@ contract JobRegistry is Ownable {
     function resolveDispute(uint256 jobId, bool slashWorker, uint256 slashAmount, int256 reputationDelta)
         external
         onlyOwner
+        nonReentrant
     {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Disputed);
+
+        job.state = JobState.Finalized;
 
         if (slashWorker) {
             uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / BPS_DENOMINATOR;
@@ -200,7 +204,6 @@ contract JobRegistry is Ownable {
         }
 
         DisputeModule(_modules.dispute).onDisputeResolved(jobId, slashWorker);
-        job.state = JobState.Finalized;
         emit DisputeResolved(jobId, slashWorker, slashAmount);
     }
 

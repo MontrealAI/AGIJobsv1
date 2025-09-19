@@ -2,7 +2,7 @@
 pragma solidity 0.8.20;
 
 contract Migrations {
-    address public owner;
+    address public immutable owner;
     uint256 public lastCompletedMigration;
 
     constructor() {
