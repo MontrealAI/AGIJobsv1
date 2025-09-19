@@ -28,6 +28,7 @@ contract FeePool is Ownable {
 
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "FeePool: registry");
+        require(jobRegistry == address(0), "FeePool: registry already set");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }

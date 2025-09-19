@@ -18,6 +18,11 @@ contract('FeePool', (accounts) => {
     const receipt = await this.pool.setJobRegistry(registry, { from: owner });
     expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.pool.jobRegistry(), registry);
+
+    await expectRevert(
+      this.pool.setJobRegistry(stranger, { from: owner }),
+      'FeePool: registry already set'
+    );
   });
 
   it('requires non-zero constructor arguments', async function () {

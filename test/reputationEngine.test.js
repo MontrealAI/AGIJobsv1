@@ -22,6 +22,11 @@ contract('ReputationEngine', (accounts) => {
     const receipt = await this.engine.setJobRegistry(registry, { from: owner });
     expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.engine.jobRegistry(), registry);
+
+    await expectRevert(
+      this.engine.setJobRegistry(worker, { from: owner }),
+      'ReputationEngine: registry already set'
+    );
   });
 
   it('adjusts reputation only when called by registry', async function () {

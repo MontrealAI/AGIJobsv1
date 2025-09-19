@@ -22,6 +22,11 @@ contract('DisputeModule', (accounts) => {
     const receipt = await this.module.setJobRegistry(registry, { from: owner });
     expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: registry });
     assert.strictEqual(await this.module.jobRegistry(), registry);
+
+    await expectRevert(
+      this.module.setJobRegistry(raiser, { from: owner }),
+      'DisputeModule: registry already set'
+    );
   });
 
   it('emits events only when called by the registry', async function () {
