@@ -10,6 +10,7 @@ const JobRegistry = artifacts.require('JobRegistry');
 
 const CUSTOM_ERROR_TYPES = {
   NotConfigured: ['bytes32'],
+  UnauthorizedDisputeRaiser: ['uint256', 'address'],
 };
 
 function stripQuotes(value) {
@@ -256,7 +257,7 @@ async function expectCustomError(promise, signature) {
 }
 
 contract('JobRegistry', (accounts) => {
-  const [deployer, worker, client, stranger, feeToken, burnAddress, stakeToken] = accounts;
+  const [deployer, worker, client, stranger, feeToken, burnAddress, stakeToken, emergency] = accounts;
 
   beforeEach(async function () {
     this.identity = await IdentityRegistry.new({ from: deployer });
@@ -312,6 +313,45 @@ contract('JobRegistry', (accounts) => {
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
 
     await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+  });
+
+  it('restricts dispute raising to authorized actors', async function () {
+    await this.stakeManager.deposit(web3.utils.toBN('1500'), { from: worker });
+
+    const createReceipt = await this.jobRegistry.createJob(web3.utils.toBN('500'), { from: client });
+    const jobId = createReceipt.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(jobId, { from: stranger }),
+      `JobRegistry.UnauthorizedDisputeRaiser(${jobId}, "${stranger}")`
+    );
+
+    const workerReceipt = await this.jobRegistry.raiseDispute(jobId, { from: worker });
+    expectEvent(workerReceipt, 'JobDisputed', { jobId, raiser: worker });
+    await this.jobRegistry.resolveDispute(jobId, false, 0, 0, { from: deployer });
+
+    const ownerJob = await this.jobRegistry.createJob(web3.utils.toBN('500'), { from: client });
+    const ownerJobId = ownerJob.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const ownerSecret = web3.utils.randomHex(32);
+    const ownerHash = web3.utils.soliditySha3({ type: 'bytes32', value: ownerSecret });
+    await this.jobRegistry.commitJob(ownerJobId, ownerHash, { from: worker });
+
+    const ownerReceipt = await this.jobRegistry.raiseDispute(ownerJobId, { from: deployer });
+    expectEvent(ownerReceipt, 'JobDisputed', { jobId: ownerJobId, raiser: deployer });
+    await this.jobRegistry.resolveDispute(ownerJobId, false, 0, 0, { from: deployer });
+
+    await this.identity.setEmergencyAccess(emergency, true, { from: deployer });
+    const emergencyJob = await this.jobRegistry.createJob(web3.utils.toBN('500'), { from: client });
+    const emergencyJobId = emergencyJob.logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const emergencySecret = web3.utils.randomHex(32);
+    const emergencyHash = web3.utils.soliditySha3({ type: 'bytes32', value: emergencySecret });
+    await this.jobRegistry.commitJob(emergencyJobId, emergencyHash, { from: worker });
+
+    const emergencyReceipt = await this.jobRegistry.raiseDispute(emergencyJobId, { from: emergency });
+    expectEvent(emergencyReceipt, 'JobDisputed', { jobId: emergencyJobId, raiser: emergency });
   });
 
   it('runs through a happy path lifecycle', async function () {

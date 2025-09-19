@@ -7,6 +7,7 @@ import {StakeManager} from "./StakeManager.sol";
 import {FeePool} from "./FeePool.sol";
 import {DisputeModule} from "./DisputeModule.sol";
 import {ReputationEngine} from "./ReputationEngine.sol";
+import {IdentityRegistry} from "./IdentityRegistry.sol";
 
 /// @title JobRegistry
 /// @notice Coordinates job lifecycle, stake locking, and fee routing.
@@ -70,6 +71,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     error WindowExpired(string window);
     error FeeBounds();
     error NotConfigured(bytes32 component);
+    error UnauthorizedDisputeRaiser(uint256 jobId, address caller);
 
     bytes32 private constant MODULES_KEY = "modules";
     bytes32 private constant TIMINGS_KEY = "timings";
@@ -205,6 +207,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
             revert InvalidState(JobState.Revealed, job.state);
         }
         if (block.timestamp > job.disputeDeadline) revert WindowExpired("dispute");
+        if (!_isAuthorizedDisputeRaiser(job, msg.sender)) {
+            revert UnauthorizedDisputeRaiser(jobId, msg.sender);
+        }
         job.state = JobState.Disputed;
         DisputeModule(_modules.dispute).onDisputeRaised(jobId, msg.sender);
         emit JobDisputed(jobId, msg.sender);
@@ -271,5 +276,16 @@ contract JobRegistry is Ownable, ReentrancyGuard {
             && _modules.dispute != address(0)
             && _modules.reputation != address(0)
             && _modules.feePool != address(0);
+    }
+
+    function _isAuthorizedDisputeRaiser(Job storage job, address caller) private view returns (bool) {
+        if (caller == job.client || caller == job.worker || caller == owner()) {
+            return true;
+        }
+        address identity = _modules.identity;
+        if (identity != address(0)) {
+            return IdentityRegistry(identity).hasEmergencyAccess(caller);
+        }
+        return false;
     }
 }
