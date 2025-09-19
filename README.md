@@ -33,6 +33,16 @@ npm run verify:sepolia
 npm run export:artifacts
 ```
 
+### GitHub Actions secrets
+
+Deployments from CI require the following repository secrets so migrations can transfer ownership correctly:
+
+- `MNEMONIC` — Deployer account seed phrase.
+- `RPC_SEPOLIA` — HTTPS RPC endpoint for Sepolia.
+- `ETHERSCAN_API_KEY` — API key for contract verification.
+- `GOV_SAFE` — Destination Safe that receives ownership of deployed contracts.
+- `TIMELOCK_ADDR` — Optional timelock admin that will be configured on modules supporting it.
+
 ## Governance
 
 All privileged ownership is transferred to a Safe and timelock during migrations. See `/audit/threat-model.md` for expectations and emergency guidance.

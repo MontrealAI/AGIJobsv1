@@ -22,6 +22,8 @@ jobs:
         env:
           MNEMONIC: ${{ secrets.MNEMONIC }}
           RPC_SEPOLIA: ${{ secrets.RPC_SEPOLIA }}
+          GOV_SAFE: ${{ secrets.GOV_SAFE }}
+          TIMELOCK_ADDR: ${{ secrets.TIMELOCK_ADDR }}
       - run: NETWORK=${{ github.event.inputs.network || 'sepolia' }} npm run verify:sepolia
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
