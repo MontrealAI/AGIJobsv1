@@ -12,6 +12,8 @@ contract ReputationEngine is Ownable {
     mapping(address => int256) public reputation;
     address public jobRegistry;
 
+    /// @notice Sets the job registry permitted to adjust reputation.
+    /// @param registry Address of the job registry contract.
     function setJobRegistry(address registry) external onlyOwner {
         require(registry != address(0), "ReputationEngine: registry");
         require(jobRegistry == address(0), "ReputationEngine: registry already set");
@@ -24,6 +26,9 @@ contract ReputationEngine is Ownable {
         _;
     }
 
+    /// @notice Applies a signed delta to a worker's reputation score.
+    /// @param worker Address whose reputation is being adjusted.
+    /// @param delta Signed amount to add (or subtract) from the worker's score.
     function adjustReputation(address worker, int256 delta) external onlyRegistry {
         reputation[worker] += delta;
         emit ReputationUpdated(worker, delta, reputation[worker]);

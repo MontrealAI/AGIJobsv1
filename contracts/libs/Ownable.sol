@@ -16,10 +16,14 @@ abstract contract Ownable {
         _transferOwnership(msg.sender);
     }
 
+    /// @notice Returns the current owner address.
+    /// @return Current owner with administrative privileges.
     function owner() public view returns (address) {
         return _owner;
     }
 
+    /// @notice Transfers ownership to a new account.
+    /// @param newOwner Address of the new owner.
     function transferOwnership(address newOwner) public onlyOwner {
         require(newOwner != address(0), "Ownable: zero address");
         _transferOwnership(newOwner);
