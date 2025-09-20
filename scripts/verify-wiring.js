@@ -100,6 +100,17 @@ module.exports = async function (callback) {
       throw new Error('slashBpsMax mismatch');
     }
 
+    const timings = await jobRegistry.timings();
+    if (Number(timings.commitWindow) !== params.commitWindow) {
+      throw new Error('commitWindow mismatch');
+    }
+    if (Number(timings.revealWindow) !== params.revealWindow) {
+      throw new Error('revealWindow mismatch');
+    }
+    if (Number(timings.disputeWindow) !== params.disputeWindow) {
+      throw new Error('disputeWindow mismatch');
+    }
+
     console.log('WIRING OK');
     callback();
   } catch (err) {
