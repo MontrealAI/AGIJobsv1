@@ -192,6 +192,164 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
   });
 }
 
+function parseBigIntLike(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'bigint') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      return null;
+    }
+    try {
+      return BigInt(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  if (typeof value === 'string') {
+    if (!/^\d+$/.test(value)) {
+      return null;
+    }
+    try {
+      return BigInt(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function ensureDomainNode(errors, fileLabel, domain, ensKeys) {
+  if (typeof domain !== 'object' || domain === null) {
+    addError(errors, fileLabel, 'domain entries must be objects');
+    return null;
+  }
+
+  if (typeof domain.node === 'string') {
+    if (!HEX_32_REGEX.test(domain.node)) {
+      addError(errors, fileLabel, `domain ${domain.name || '<unnamed>'} node must be a 32-byte hex string`);
+      return null;
+    }
+    return domain.node;
+  }
+
+  if (typeof domain.rootKey === 'string') {
+    if (!ensKeys.has(domain.rootKey)) {
+      addError(
+        errors,
+        fileLabel,
+        `domain ${domain.name || '<unnamed>'} rootKey must reference a valid ENS config key`
+      );
+    }
+    return null;
+  }
+
+  addError(errors, fileLabel, `domain ${domain.name || '<unnamed>'} must specify node or rootKey`);
+  return null;
+}
+
+function validateRegistrarConfig(errors, fileLabel, data) {
+  if (!data || typeof data !== 'object') {
+    addError(errors, fileLabel, 'configuration must be an object');
+    return;
+  }
+
+  if (data.address !== null && data.address !== undefined) {
+    validateAddress(errors, fileLabel, data.address, { field: 'address', allowZero: false });
+  }
+
+  if (data.defaultToken !== null && data.defaultToken !== undefined) {
+    validateAddress(errors, fileLabel, data.defaultToken, { field: 'defaultToken', allowZero: false });
+  }
+
+  const domains = data.domains;
+  if (!Array.isArray(domains)) {
+    addError(errors, fileLabel, 'domains must be an array');
+    return;
+  }
+
+  const ensKeys = new Set(['agentRootHash', 'clubRootHash']);
+
+  domains.forEach((domain) => {
+    const domainName = typeof domain?.name === 'string' ? domain.name : '<unnamed>';
+    ensureDomainNode(errors, fileLabel, domain, ensKeys);
+
+    if (domain.expectedBeneficiary !== null && domain.expectedBeneficiary !== undefined) {
+      validateAddress(errors, fileLabel, domain.expectedBeneficiary, {
+        field: `${domainName}.expectedBeneficiary`,
+        allowZero: false,
+      });
+    }
+
+    if (domain.expectedToken !== null && domain.expectedToken !== undefined) {
+      validateAddress(errors, fileLabel, domain.expectedToken, {
+        field: `${domainName}.expectedToken`,
+        allowZero: false,
+      });
+    }
+
+    if (domain.defaultDuration !== null && domain.defaultDuration !== undefined) {
+      const parsed = parseBigIntLike(domain.defaultDuration);
+      if (parsed === null || parsed <= 0n) {
+        addError(errors, fileLabel, `${domainName}.defaultDuration must be a positive integer`);
+      }
+    }
+
+    const labels = domain.labels;
+    if (labels !== undefined) {
+      if (!Array.isArray(labels)) {
+        addError(errors, fileLabel, `${domainName}.labels must be an array when provided`);
+      } else {
+        labels.forEach((entry) => {
+          if (!entry || typeof entry !== 'object') {
+            addError(errors, fileLabel, `${domainName}.labels entries must be objects`);
+            return;
+          }
+
+          if (typeof entry.label !== 'string' || entry.label.trim().length === 0) {
+            addError(errors, fileLabel, `${domainName}.labels entries must include a non-empty label`);
+          }
+
+          if (entry.expectedToken !== null && entry.expectedToken !== undefined) {
+            validateAddress(errors, fileLabel, entry.expectedToken, {
+              field: `${domainName}.labels.expectedToken`,
+              allowZero: false,
+            });
+          }
+
+          if (entry.minPrice !== null && entry.minPrice !== undefined) {
+            const parsed = parseBigIntLike(entry.minPrice);
+            if (parsed === null || parsed < 0n) {
+              addError(errors, fileLabel, `${domainName}.labels.minPrice must be a non-negative integer`);
+            }
+          }
+
+          if (entry.maxPrice !== null && entry.maxPrice !== undefined) {
+            const parsed = parseBigIntLike(entry.maxPrice);
+            if (parsed === null || parsed < 0n) {
+              addError(errors, fileLabel, `${domainName}.labels.maxPrice must be a non-negative integer`);
+            }
+          }
+
+          if (entry.duration !== null && entry.duration !== undefined) {
+            const parsed = parseBigIntLike(entry.duration);
+            if (parsed === null || parsed <= 0n) {
+              addError(errors, fileLabel, `${domainName}.labels.duration must be a positive integer`);
+            }
+          }
+        });
+      }
+    }
+  });
+}
+
 function validateParamsConfig(errors, fileLabel, data) {
   if (!data || typeof data !== 'object') {
     addError(errors, fileLabel, 'configuration must be an object');
@@ -257,6 +415,18 @@ function validateAllConfigs({ baseDir } = {}) {
     {
       name: 'ens.sepolia.json',
       validator: (data) => validateEnsConfig(errors, 'ens.sepolia.json', data, { variant: 'sepolia' }),
+    },
+    {
+      name: 'registrar.dev.json',
+      validator: (data) => validateRegistrarConfig(errors, 'registrar.dev.json', data),
+    },
+    {
+      name: 'registrar.mainnet.json',
+      validator: (data) => validateRegistrarConfig(errors, 'registrar.mainnet.json', data),
+    },
+    {
+      name: 'registrar.sepolia.json',
+      validator: (data) => validateRegistrarConfig(errors, 'registrar.sepolia.json', data),
     },
     {
       name: 'params.json',
