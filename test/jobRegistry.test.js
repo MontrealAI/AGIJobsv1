@@ -748,6 +748,9 @@ contract('JobRegistry', (accounts) => {
     const feePoolBalance = await this.token.balanceOf(this.feePool.address);
     assert.strictEqual(feePoolBalance.toString(), slashAmount.toString());
 
+    const recordedFees = await this.feePool.totalFeesRecorded();
+    assert.strictEqual(recordedFees.toString(), slashAmount.toString());
+
     await expectCustomError(
       this.jobRegistry.timeoutJob(jobId, 0, { from: deployer }),
       `JobRegistry.InvalidState(${JOB_STATES.Committed}, ${JOB_STATES.Finalized})`
@@ -796,6 +799,8 @@ contract('JobRegistry', (accounts) => {
 
     const finalized = await this.jobRegistry.jobs(jobId);
     assert.strictEqual(finalized.state.toNumber(), JOB_STATES.Finalized);
+
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), '100');
   });
 
   it('prevents finalize from invalid states', async function () {
@@ -846,6 +851,9 @@ contract('JobRegistry', (accounts) => {
       slashAmount.toString()
     );
 
+    const recordedFeesAfterSlash = await this.feePool.totalFeesRecorded();
+    assert.strictEqual(recordedFeesAfterSlash.toString(), slashAmount.toString());
+
     const lockedAfterSlash = await this.stakeManager.lockedAmounts(worker);
     assert.strictEqual(lockedAfterSlash.toString(), '0');
 
@@ -875,6 +883,8 @@ contract('JobRegistry', (accounts) => {
     const poolBalanceAfterRelease = await this.token.balanceOf(this.feePool.address);
     assert.strictEqual(poolBalanceAfterRelease.toString(), poolBalanceBeforeRelease.toString());
     assert.strictEqual((await this.reputation.reputation(worker)).toString(), '2');
+
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), slashAmount.toString());
 
     await this.stakeManager.deposit('500', { from: worker });
     const neutral = await this.jobRegistry.createJob('500', { from: client });

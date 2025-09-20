@@ -274,15 +274,21 @@ contract JobRegistry is Ownable, ReentrancyGuard {
 
         job.state = JobState.Finalized;
 
+        StakeManager staking = StakeManager(_modules.staking);
+        FeePool feePool = FeePool(_modules.feePool);
+
         if (slashWorker) {
             uint256 maxSlash = (job.stakeAmount * thresholds.slashBpsMax) / BPS_DENOMINATOR;
             if (slashAmount > maxSlash) revert("JobRegistry: slash bounds");
             if (slashAmount > job.stakeAmount) revert("JobRegistry: slash exceeds stake");
 
             uint256 releaseAmount = job.stakeAmount - slashAmount;
-            StakeManager(_modules.staking).settleStake(job.worker, releaseAmount, slashAmount);
+            staking.settleStake(job.worker, releaseAmount, slashAmount);
+            if (slashAmount > 0) {
+                feePool.recordFee(slashAmount);
+            }
         } else {
-            StakeManager(_modules.staking).releaseStake(job.worker, job.stakeAmount);
+            staking.releaseStake(job.worker, job.stakeAmount);
         }
 
         if (reputationDelta != 0) {
@@ -319,7 +325,11 @@ contract JobRegistry is Ownable, ReentrancyGuard {
 
         job.state = JobState.Finalized;
 
-        StakeManager(_modules.staking).settleStake(job.worker, stakeAmount - slashAmount, slashAmount);
+        StakeManager staking = StakeManager(_modules.staking);
+        staking.settleStake(job.worker, stakeAmount - slashAmount, slashAmount);
+        if (slashAmount > 0) {
+            FeePool(_modules.feePool).recordFee(slashAmount);
+        }
 
         emit JobTimedOut(jobId, slashAmount);
     }

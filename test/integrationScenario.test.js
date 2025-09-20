@@ -107,7 +107,7 @@ contract('Protocol integration scenarios', (accounts) => {
 
     const poolBalance = await this.token.balanceOf(this.feePool.address);
     assert.strictEqual(poolBalance.toString(), slashAmount.toString());
-    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), '0');
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), slashAmount.toString());
 
     const availableAfter = await this.stakeManager.availableStake(worker);
     assert.strictEqual(availableAfter.toString(), stakeAmount.sub(slashAmount).toString());
