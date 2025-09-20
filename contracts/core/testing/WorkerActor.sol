@@ -56,7 +56,8 @@ contract WorkerActor {
 
     function _approveIfNeeded(uint256 amount) private {
         if (stakeToken.allowance(address(this), address(stakeManager)) < amount) {
-            stakeToken.approve(address(stakeManager), type(uint256).max);
+            bool success = stakeToken.approve(address(stakeManager), type(uint256).max);
+            require(success, "WorkerActor: approve failed");
         }
     }
 }
