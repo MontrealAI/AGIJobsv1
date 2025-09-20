@@ -146,6 +146,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         uint256 slashBpsMax
     ) external onlyOwner {
         require(quorumMin > 0 && quorumMax >= quorumMin, "JobRegistry: quorum");
+        require(approvalThresholdBps <= BPS_DENOMINATOR, "JobRegistry: approval bps");
         require(feeBps <= BPS_DENOMINATOR, "JobRegistry: fee bps");
         require(slashBpsMax <= BPS_DENOMINATOR, "JobRegistry: slash bps");
 
