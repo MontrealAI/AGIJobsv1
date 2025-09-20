@@ -1,0 +1,9 @@
+branches:
+  - name: main
+    protection:
+      required_status_checks:
+        strict: true
+        contexts:
+          - ci
+          - slither
+          - echidna-smoke
