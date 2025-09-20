@@ -3,6 +3,8 @@ const path = require('path');
 
 const DEFAULT_VARIANT = 'mainnet';
 
+const DEV_VARIANTS = new Set(['dev', 'development', 'localhost', 'hardhat']);
+
 function resolveVariant(networkOrVariant = DEFAULT_VARIANT) {
   if (!networkOrVariant) {
     return DEFAULT_VARIANT;
@@ -14,15 +16,11 @@ function resolveVariant(networkOrVariant = DEFAULT_VARIANT) {
     return 'mainnet';
   }
 
-  const devVariants = new Set([
-    'dev',
-    'development',
-    'localhost',
-    'hardhat',
-    'sepolia'
-  ]);
+  if (normalized === 'sepolia') {
+    return 'sepolia';
+  }
 
-  if (devVariants.has(normalized)) {
+  if (DEV_VARIANTS.has(normalized)) {
     return 'dev';
   }
 

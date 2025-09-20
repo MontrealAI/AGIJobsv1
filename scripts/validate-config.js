@@ -70,9 +70,9 @@ function validateAgiAlphaConfig(errors, fileLabel, data, { variant }) {
   }
 
   const token = data.token;
-  if (variant === 'mainnet') {
+  if (variant === 'mainnet' || variant === 'sepolia') {
     validateAddress(errors, fileLabel, token, { field: 'token' });
-    if (typeof token === 'string' && !equalsIgnoreCase(token, AGI_MAINNET_TOKEN)) {
+    if (variant === 'mainnet' && typeof token === 'string' && !equalsIgnoreCase(token, AGI_MAINNET_TOKEN)) {
       addError(
         errors,
         fileLabel,
@@ -84,16 +84,18 @@ function validateAgiAlphaConfig(errors, fileLabel, data, { variant }) {
   }
 
   const decimals = ensureInteger(errors, fileLabel, data, 'decimals', { min: 0, max: 255 });
-  if (decimals !== null && variant === 'mainnet' && decimals !== 18) {
+  if (decimals !== null && (variant === 'mainnet' || variant === 'sepolia') && decimals !== 18) {
     addError(errors, fileLabel, 'decimals must be 18 for the production token');
   }
 
   const burnAddress = data.burnAddress;
   validateAddress(errors, fileLabel, burnAddress, { field: 'burnAddress' });
-  if (typeof burnAddress === 'string' && variant === 'mainnet') {
-    if (!equalsIgnoreCase(burnAddress, AGI_MAINNET_BURN)) {
-      addError(errors, fileLabel, `burnAddress must equal ${AGI_MAINNET_BURN} on mainnet`);
-    }
+  if (
+    typeof burnAddress === 'string'
+    && variant === 'mainnet'
+    && !equalsIgnoreCase(burnAddress, AGI_MAINNET_BURN)
+  ) {
+    addError(errors, fileLabel, `burnAddress must equal ${AGI_MAINNET_BURN} on mainnet`);
   }
 }
 
@@ -150,15 +152,18 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
     if (typeof registry === 'string' && !equalsIgnoreCase(registry, ENS_MAINNET_REGISTRY)) {
       addError(errors, fileLabel, `registry must equal ${ENS_MAINNET_REGISTRY} on mainnet`);
     }
+  } else if (variant === 'sepolia') {
+    validateAddress(errors, fileLabel, registry, { field: 'registry' });
   } else if (registry !== ZERO_ADDRESS) {
     validateAddress(errors, fileLabel, registry, { field: 'registry', allowZero: false });
   }
 
+  const requireRoots = variant === 'mainnet' || variant === 'sepolia';
   validateEnsRoot(errors, fileLabel, data, 'agentRoot', 'agentRootHash', {
-    required: variant === 'mainnet',
+    required: requireRoots,
   });
   validateEnsRoot(errors, fileLabel, data, 'clubRoot', 'clubRootHash', {
-    required: variant === 'mainnet',
+    required: requireRoots,
   });
 }
 
@@ -212,12 +217,21 @@ function validateAllConfigs({ baseDir } = {}) {
         validateAgiAlphaConfig(errors, 'agialpha.mainnet.json', data, { variant: 'mainnet' }),
     },
     {
+      name: 'agialpha.sepolia.json',
+      validator: (data) =>
+        validateAgiAlphaConfig(errors, 'agialpha.sepolia.json', data, { variant: 'sepolia' }),
+    },
+    {
       name: 'ens.dev.json',
       validator: (data) => validateEnsConfig(errors, 'ens.dev.json', data, { variant: 'dev' }),
     },
     {
       name: 'ens.mainnet.json',
       validator: (data) => validateEnsConfig(errors, 'ens.mainnet.json', data, { variant: 'mainnet' }),
+    },
+    {
+      name: 'ens.sepolia.json',
+      validator: (data) => validateEnsConfig(errors, 'ens.sepolia.json', data, { variant: 'sepolia' }),
     },
     {
       name: 'params.json',
