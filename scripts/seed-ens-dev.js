@@ -21,7 +21,15 @@ const labelhash = (label) => {
 module.exports = async function (callback) {
   try {
     const networkName = extractNetwork(process.argv) || process.env.TRUFFLE_NETWORK;
-    const variant = resolveVariant(networkName);
+    let variant;
+    try {
+      variant = resolveVariant(networkName);
+    } catch (error) {
+      console.error(error.message || error);
+      process.exitCode = 1;
+      callback(error);
+      return;
+    }
 
     if (variant !== 'dev') {
       console.log('Skipping ENS seeding for non-development network');

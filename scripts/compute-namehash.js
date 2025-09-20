@@ -42,14 +42,19 @@ const { network, explicitPath } = parseArguments(process.argv);
 let targetPath;
 let config;
 
-if (explicitPath) {
-  targetPath = path.resolve(process.cwd(), explicitPath);
-  const raw = fs.readFileSync(targetPath, 'utf8');
-  config = JSON.parse(raw);
-} else {
-  const variant = resolveVariant(network);
-  targetPath = configPath('ens', variant);
-  config = readConfig('ens', variant);
+try {
+  if (explicitPath) {
+    targetPath = path.resolve(process.cwd(), explicitPath);
+    const raw = fs.readFileSync(targetPath, 'utf8');
+    config = JSON.parse(raw);
+  } else {
+    const variant = resolveVariant(network);
+    targetPath = configPath('ens', variant);
+    config = readConfig('ens', variant);
+  }
+} catch (error) {
+  console.error(error.message || error);
+  process.exit(1);
 }
 
 const assignHash = (rootKey, hashKey) => {
