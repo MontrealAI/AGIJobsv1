@@ -41,7 +41,9 @@ pre-flight checklist before running against the live network.
    spot-check critical reads such as `StakeManager.stakeToken()` or ENS roots via
    `truffle console --network mainnet`. Because the simulation lacked a real RPC
    endpoint, no stateful checks were executed; instead, the wiring script logic
-   was reviewed to ensure it enforces the Safe and timelock ownership rules.【F:scripts/verify-wiring.js†L1-L82】
+   was reviewed to ensure it enforces the Safe/timelock ownership rules **and**
+   now fails if the deployed `$AGIALPHA` token, burn sink, or ENS node hashes
+   diverge from the JSON configuration.【F:scripts/verify-wiring.js†L1-L159】
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
