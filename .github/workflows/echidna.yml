@@ -49,8 +49,8 @@ jobs:
           python3 -m pip install --user crytic-compile
           echo "$user_base/bin" >> "$GITHUB_PATH"
           export PATH="$user_base/bin:$PATH"
-          solc-select install 0.8.20
-          solc-select use 0.8.20
+          solc-select install 0.8.23
+          solc-select use 0.8.23
       - name: Run Echidna smoke
         run: |
           set -euxo pipefail
