@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2025-09-20T00:00:27.814Z",
+  "contracts": [
+    "CertificateNFT",
+    "ClientActor",
+    "DisputeModule",
+    "EchidnaJobRegistryInvariants",
+    "FeePool",
+    "IERC20",
+    "IdentityRegistry",
+    "JobRegistry",
+    "Migrations",
+    "MockERC20",
+    "Ownable",
+    "ReentrancyGuard",
+    "ReputationEngine",
+    "SafeERC20",
+    "StakeManager",
+    "ValidationModule",
+    "WorkerActor"
+  ]
+}
