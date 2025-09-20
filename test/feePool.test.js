@@ -6,8 +6,7 @@ contract('FeePool', (accounts) => {
   const [owner, registry, stranger, burnAddress] = accounts;
 
   beforeEach(async function () {
-    this.token = await MockERC20.new('Stake', 'STK', 18, { from: owner });
-    await this.token.mint(owner, web3.utils.toBN('1000'), { from: owner });
+    this.token = await MockERC20.new('Stake', 'STK', 18, owner, web3.utils.toBN('1000'), { from: owner });
     this.pool = await FeePool.new(this.token.address, burnAddress, { from: owner });
   });
 

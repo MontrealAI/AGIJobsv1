@@ -16,8 +16,7 @@ contract('Protocol integration scenarios', (accounts) => {
 
   beforeEach(async function () {
     this.identity = await IdentityRegistry.new({ from: deployer });
-    this.token = await MockERC20.new('Stake', 'STK', 18, { from: deployer });
-    await this.token.mint(worker, initialMint, { from: deployer });
+    this.token = await MockERC20.new('Stake', 'STK', 18, worker, initialMint, { from: deployer });
     this.stakeManager = await StakeManager.new(this.token.address, 18, { from: deployer });
     this.feePool = await FeePool.new(this.token.address, feeSink, { from: deployer });
     this.validation = await ValidationModule.new({ from: deployer });

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {IERC20} from "../libs/IERC20.sol";
+import {IERC20} from "./IERC20.sol";
 
-/// @dev Simple ERC20 token used for testing flows that require token transfers.
+/// @dev Minimal ERC20 token used in tests and local deployments.
 contract MockERC20 is IERC20 {
     string public name;
     string public symbol;
@@ -14,24 +14,24 @@ contract MockERC20 is IERC20 {
     mapping(address => uint256) public override balanceOf;
     mapping(address => mapping(address => uint256)) public override allowance;
 
-    /// @notice Initializes the mock token with metadata values used in tests.
+    /// @notice Initializes the mock token and mints the initial supply.
     /// @param name_ Token name exposed via the ERC20 interface.
     /// @param symbol_ Token symbol exposed via the ERC20 interface.
     /// @param decimals_ Number of decimals the token uses.
-    constructor(string memory name_, string memory symbol_, uint8 decimals_) {
+    /// @param initialHolder Account receiving the initial token allocation.
+    /// @param initialSupply Quantity of tokens to mint during deployment.
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_,
+        address initialHolder,
+        uint256 initialSupply
+    ) {
+        require(initialHolder != address(0), "MockERC20: holder");
         name = name_;
         symbol = symbol_;
         decimals = decimals_;
-    }
-
-    /// @notice Mints tokens to the desired recipient for testing scenarios.
-    /// @param to Address that will receive the new tokens.
-    /// @param amount Quantity of tokens to mint.
-    function mint(address to, uint256 amount) external {
-        require(to != address(0), "MockERC20: mint to zero");
-        totalSupply += amount;
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
+        _mint(initialHolder, initialSupply);
     }
 
     /// @notice Transfers tokens from the caller to a destination address.
@@ -71,7 +71,7 @@ contract MockERC20 is IERC20 {
     }
 
     function _transfer(address from, address to, uint256 amount) internal {
-        require(from != address(0) && to != address(0), "MockERC20: transfer zero");
+        require(from != address(0) && to != address(0), "MockERC20: transfer");
         uint256 balance = balanceOf[from];
         require(balance >= amount, "MockERC20: balance");
         unchecked {
@@ -82,8 +82,14 @@ contract MockERC20 is IERC20 {
     }
 
     function _approve(address owner, address spender, uint256 amount) internal {
-        require(owner != address(0) && spender != address(0), "MockERC20: approve zero");
+        require(owner != address(0) && spender != address(0), "MockERC20: approve");
         allowance[owner][spender] = amount;
         emit Approval(owner, spender, amount);
+    }
+
+    function _mint(address to, uint256 amount) internal {
+        totalSupply += amount;
+        balanceOf[to] += amount;
+        emit Transfer(address(0), to, amount);
     }
 }

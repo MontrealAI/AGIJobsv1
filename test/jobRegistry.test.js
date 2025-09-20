@@ -275,8 +275,7 @@ contract('JobRegistry', (accounts) => {
 
   beforeEach(async function () {
     this.identity = await IdentityRegistry.new({ from: deployer });
-    this.token = await MockERC20.new('Stake', 'STK', 18, { from: deployer });
-    await this.token.mint(worker, initialStake, { from: deployer });
+    this.token = await MockERC20.new('Stake', 'STK', 18, worker, initialStake, { from: deployer });
     this.stakeManager = await StakeManager.new(this.token.address, 18, { from: deployer });
     this.feePool = await FeePool.new(this.token.address, burnAddress, { from: deployer });
     this.validation = await ValidationModule.new({ from: deployer });
@@ -779,8 +778,7 @@ contract('JobRegistry', (accounts) => {
   describe('configuration gating', () => {
     beforeEach(async function () {
       this.identity = await IdentityRegistry.new({ from: deployer });
-      this.token = await MockERC20.new('Stake', 'STK', 18, { from: deployer });
-      await this.token.mint(worker, web3.utils.toBN('1000000'), { from: deployer });
+      this.token = await MockERC20.new('Stake', 'STK', 18, worker, web3.utils.toBN('1000000'), { from: deployer });
       this.stakeManager = await StakeManager.new(this.token.address, 18, { from: deployer });
       this.feePool = await FeePool.new(this.token.address, burnAddress, { from: deployer });
       this.validation = await ValidationModule.new({ from: deployer });
