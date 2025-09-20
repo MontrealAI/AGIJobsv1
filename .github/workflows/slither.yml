@@ -15,17 +15,17 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
+      - name: Prepare Hardhat directories
+        run: |
+          mkdir -p cache artifacts artifacts/build-info
+          chmod -R 777 cache artifacts
       - name: Run Slither
         run: |
           NODE_DIR="$(dirname "$(dirname "$(node -p 'process.execPath')")")"
-          USER_ID="$(id -u)"
-          GROUP_ID="$(id -g)"
           docker run --rm \
             -v ${{ github.workspace }}:/src \
             -v "${NODE_DIR}":"${NODE_DIR}" \
             -w /src \
             -e NODE_DIR="${NODE_DIR}" \
-            -e HOME=/src \
-            --user "${USER_ID}:${GROUP_ID}" \
             ghcr.io/crytic/slither:0.10.4 \
             sh -lc 'export PATH="/src/node_modules/.bin:$NODE_DIR/bin:$PATH"; slither . --fail-medium'
