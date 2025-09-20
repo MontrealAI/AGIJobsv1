@@ -1,5 +1,5 @@
 {
   "token": "0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA",
   "decimals": 18,
-  "burnAddress": "0x000000000000000000000000000000000000dEaD"
+  "burnAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
 }
