@@ -16,6 +16,7 @@
     "migrate:dev": "npx truffle migrate --reset --network development",
     "migrate:mainnet": "npx truffle migrate --reset --network mainnet",
     "migrate:sepolia": "npx truffle migrate --reset --network sepolia",
+    "verify:mainnet": "truffle run verify JobRegistry StakeManager ValidationModule DisputeModule ReputationEngine IdentityRegistry FeePool CertificateNFT --network mainnet",
     "verify:sepolia": "truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network sepolia",
     "export:abis": "node scripts/export-abis.js",
     "export:artifacts": "NETWORK=${NETWORK:-development} node scripts/export-artifacts-runner.js",
