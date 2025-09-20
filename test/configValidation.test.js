@@ -35,6 +35,13 @@ contract('Configuration validation', () => {
       params.quorumMin = 5;
       fs.writeFileSync(paramsPath, JSON.stringify(params, null, 2));
 
+      const registrarMainnetPath = path.join(tmpDir, 'registrar.mainnet.json');
+      const registrarMainnet = JSON.parse(fs.readFileSync(registrarMainnetPath, 'utf8'));
+      registrarMainnet.address = '0x0000000000000000000000000000000000000000';
+      registrarMainnet.domains[0].labels[0].minPrice = '-1';
+      registrarMainnet.domains[0].labels[0].label = '';
+      fs.writeFileSync(registrarMainnetPath, JSON.stringify(registrarMainnet, null, 2));
+
       const { errors } = validateAllConfigs({ baseDir: tmpDir });
       assert.isAbove(errors.length, 0, 'expected validation errors');
       assert.isTrue(
@@ -56,6 +63,10 @@ contract('Configuration validation', () => {
       assert.isTrue(
         errors.some((message) => message.includes('params.json')),
         'should flag quorum ordering issue'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('registrar.mainnet.json')),
+        'should flag registrar misconfiguration'
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });

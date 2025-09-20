@@ -1,0 +1,25 @@
+{
+  "address": "0xD75459a31c389f3EBa9ad9bA778e9Ea574A7a777",
+  "defaultToken": "0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA",
+  "domains": [
+    {
+      "name": "agent.agi.eth",
+      "rootKey": "agentRootHash",
+      "labels": [
+        {
+          "label": "builder"
+        }
+      ]
+    },
+    {
+      "name": "club.agi.eth",
+      "rootKey": "clubRootHash",
+      "labels": [
+        {
+          "label": "alpha",
+          "minPrice": "5000000000000000000000"
+        }
+      ]
+    }
+  ]
+}

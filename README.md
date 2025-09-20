@@ -129,6 +129,16 @@ The script defaults to the local development network. Override it by setting `NE
 NETWORK=sepolia npm run wire:verify
 ```
 
+### Verify registrar pricing
+
+Confirm the `ForeverSubdomainRegistrar` wiring uses the production `$AGIALPHA` token for both agent and club subdomains and enforces the required alpha tier price floor:
+
+```bash
+npm run registrar:verify
+```
+
+The verifier reads `config/registrar.<variant>.json` and checks that every configured ENS root is active on the registrar, has a live pricer, and quotes the expected ERC-20 payment token. When `minPrice` thresholds are defined for specific labels (for example `alpha.club.agi.eth` requiring 5,000 `$AGIALPHA`), the command fails if the registrar returns a lower amount. Use `NETWORK=mainnet npm run registrar:verify` to audit the production deployment prior to go-live.
+
 ### GitHub Actions secrets
 
 Deployments from CI require the following repository secrets so migrations can transfer ownership correctly:
