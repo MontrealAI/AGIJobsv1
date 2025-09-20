@@ -99,6 +99,15 @@ module.exports = async function (callback) {
     if (Number(thresholds.slashBpsMax) !== params.slashBpsMax) {
       throw new Error('slashBpsMax mismatch');
     }
+    if (Number(thresholds.approvalThresholdBps) !== params.approvalThresholdBps) {
+      throw new Error('approvalThresholdBps mismatch');
+    }
+    if (Number(thresholds.quorumMin) !== params.quorumMin) {
+      throw new Error('quorumMin mismatch');
+    }
+    if (Number(thresholds.quorumMax) !== params.quorumMax) {
+      throw new Error('quorumMax mismatch');
+    }
 
     const timings = await jobRegistry.timings();
     if (Number(timings.commitWindow) !== params.commitWindow) {
