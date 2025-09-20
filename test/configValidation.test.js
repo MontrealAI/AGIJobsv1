@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 
 const { validateAllConfigs } = require('../scripts/validate-config');
+const { resolveVariant } = require('../scripts/config-loader');
 
 contract('Configuration validation', () => {
   it('passes with repository configuration set', function () {
@@ -49,5 +50,23 @@ contract('Configuration validation', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+});
+
+contract('Config loader variant resolution', () => {
+  it('normalizes development aliases to dev', function () {
+    ['dev', 'development', 'localhost', 'hardhat', 'test', 'coverage'].forEach((alias) => {
+      assert.strictEqual(resolveVariant(alias), 'dev');
+    });
+  });
+
+  it('recognizes explicit mainnet and sepolia variants', function () {
+    assert.strictEqual(resolveVariant('mainnet'), 'mainnet');
+    assert.strictEqual(resolveVariant('sepolia'), 'sepolia');
+  });
+
+  it('throws for unsupported variants to avoid silent fallbacks', function () {
+    assert.throws(() => resolveVariant('staging'), /Unsupported network variant/);
+    assert.throws(() => resolveVariant('prod'), /Unsupported network variant/);
   });
 });

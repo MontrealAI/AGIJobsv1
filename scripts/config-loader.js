@@ -3,7 +3,20 @@ const path = require('path');
 
 const DEFAULT_VARIANT = 'mainnet';
 
-const DEV_VARIANTS = new Set(['dev', 'development', 'localhost', 'hardhat']);
+const VARIANT_ALIASES = new Map(
+  Object.entries({
+    mainnet: 'mainnet',
+    sepolia: 'sepolia',
+    dev: 'dev',
+    development: 'dev',
+    localhost: 'dev',
+    hardhat: 'dev',
+    test: 'dev',
+    coverage: 'dev',
+  })
+);
+
+const SUPPORTED_VARIANTS = ['mainnet', 'sepolia', 'dev'];
 
 function resolveVariant(networkOrVariant = DEFAULT_VARIANT) {
   if (!networkOrVariant) {
@@ -12,19 +25,16 @@ function resolveVariant(networkOrVariant = DEFAULT_VARIANT) {
 
   const normalized = networkOrVariant.toLowerCase();
 
-  if (normalized === 'mainnet') {
-    return 'mainnet';
+  const resolved = VARIANT_ALIASES.get(normalized);
+  if (resolved) {
+    return resolved;
   }
 
-  if (normalized === 'sepolia') {
-    return 'sepolia';
-  }
-
-  if (DEV_VARIANTS.has(normalized)) {
-    return 'dev';
-  }
-
-  return DEFAULT_VARIANT;
+  throw new Error(
+    `Unsupported network variant "${networkOrVariant}". Expected one of: ${SUPPORTED_VARIANTS.join(
+      ', '
+    )}`
+  );
 }
 
 function configPath(configName, networkOrVariant) {
@@ -41,5 +51,6 @@ function readConfig(configName, networkOrVariant) {
 module.exports = {
   configPath,
   readConfig,
-  resolveVariant
+  resolveVariant,
+  SUPPORTED_VARIANTS,
 };
