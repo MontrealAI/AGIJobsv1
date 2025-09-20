@@ -20,6 +20,7 @@ module.exports = {
   networks: {
     hardhat: {
       chainId: 1337,
+      loggingEnabled: false,
     },
     sepolia: {
       url: RPC_SEPOLIA || '',
