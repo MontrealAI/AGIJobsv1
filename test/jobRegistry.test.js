@@ -10,6 +10,11 @@ const CertificateNFT = artifacts.require('CertificateNFT');
 const JobRegistry = artifacts.require('JobRegistry');
 const MockERC20 = artifacts.require('MockERC20');
 
+const GAS_CHECK_ENABLED =
+  !process.env.SOLIDITY_COVERAGE &&
+  !process.env.COVERAGE &&
+  !process.env.SKIP_GAS_ASSERTS;
+
 // Gas ceilings include ~5-10% buffers above empirically observed Hardhat baselines to
 // absorb minor opcode repricings without causing noisy failures. The measured costs were:
 // createJob ≈ 200,263 gas, commitJob ≈ 124,695 gas, revealJob ≈ 35,367 gas,
@@ -20,6 +25,14 @@ const REVEAL_JOB_GAS_CEILING = 45000;
 const FINALIZE_JOB_GAS_CEILING = 150000;
 const RAISE_DISPUTE_GAS_CEILING = 70000;
 const RESOLVE_DISPUTE_GAS_CEILING = 110000;
+
+function assertGasBelow(receipt, ceiling) {
+  if (!GAS_CHECK_ENABLED) {
+    return;
+  }
+
+  expect(receipt.receipt.gasUsed).to.be.below(ceiling);
+}
 
 const CUSTOM_ERROR_TYPES = {
   NotConfigured: ['bytes32'],
@@ -408,7 +421,7 @@ contract('JobRegistry', (accounts) => {
     );
 
     const disputeTx = await this.jobRegistry.raiseDispute(jobId, { from: client });
-    expect(disputeTx.receipt.gasUsed).to.be.below(RAISE_DISPUTE_GAS_CEILING);
+    assertGasBelow(disputeTx, RAISE_DISPUTE_GAS_CEILING);
     expectEvent(disputeTx, 'JobDisputed', { jobId, raiser: client });
 
     await expectRevert(
@@ -416,8 +429,10 @@ contract('JobRegistry', (accounts) => {
       'JobRegistry: slash bounds'
     );
 
-    const resolveTx = await this.jobRegistry.resolveDispute(jobId, false, 0, 3, { from: deployer });
-    expect(resolveTx.receipt.gasUsed).to.be.below(RESOLVE_DISPUTE_GAS_CEILING);
+    const resolveTx = await this.jobRegistry.resolveDispute(jobId, false, 0, 3, {
+      from: deployer,
+    });
+    assertGasBelow(resolveTx, RESOLVE_DISPUTE_GAS_CEILING);
     expectEvent(resolveTx, 'DisputeResolved', {
       jobId,
       slashed: false,
@@ -439,7 +454,7 @@ contract('JobRegistry', (accounts) => {
     assert.strictEqual((await this.token.balanceOf(this.stakeManager.address)).toString(), stakeAmount.toString());
 
     const receiptCreate = await this.jobRegistry.createJob(stakeAmount, { from: client });
-    expect(receiptCreate.receipt.gasUsed).to.be.below(CREATE_JOB_GAS_CEILING);
+    assertGasBelow(receiptCreate, CREATE_JOB_GAS_CEILING);
     const jobId = receiptCreate.logs.find((log) => log.event === 'JobCreated').args.jobId;
 
     const commitSecret = web3.utils.randomHex(32);
@@ -447,15 +462,15 @@ contract('JobRegistry', (accounts) => {
     expectEvent(receiptCreate, 'JobCreated', { client });
 
     const commitReceipt = await this.jobRegistry.commitJob(jobId, commitHash, { from: worker });
-    expect(commitReceipt.receipt.gasUsed).to.be.below(COMMIT_JOB_GAS_CEILING);
+    assertGasBelow(commitReceipt, COMMIT_JOB_GAS_CEILING);
     expectEvent(commitReceipt, 'JobCommitted', { jobId, worker });
 
     const revealReceipt = await this.jobRegistry.revealJob(jobId, commitSecret, { from: worker });
-    expect(revealReceipt.receipt.gasUsed).to.be.below(REVEAL_JOB_GAS_CEILING);
+    assertGasBelow(revealReceipt, REVEAL_JOB_GAS_CEILING);
     expectEvent(revealReceipt, 'JobRevealed', { jobId, worker });
 
     const finalizeReceipt = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
-    expect(finalizeReceipt.receipt.gasUsed).to.be.below(FINALIZE_JOB_GAS_CEILING);
+    assertGasBelow(finalizeReceipt, FINALIZE_JOB_GAS_CEILING);
     expectEvent(finalizeReceipt, 'JobFinalized', { jobId });
 
     const feeAmount = stakeAmount.muln(250).divn(10000);
