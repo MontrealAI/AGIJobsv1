@@ -39,16 +39,17 @@ module.exports = async function (callback) {
     const agentNode = namehash('agent.agi.eth');
     const clubNode = namehash('club.agi.eth');
 
-    const setSubnodeOwner = async (parentNode, label) => {
-      await registry.setSubnodeOwner(parentNode, labelhash(label), owner, { from: owner });
+    const setSubnodeOwner = async (parentNode, label, newOwner = owner, domainName = label) => {
+      await registry.setSubnodeOwner(parentNode, labelhash(label), newOwner, { from: owner });
+      console.log(`Assigned ${domainName} to ${newOwner}`);
     };
 
-    await setSubnodeOwner(rootNode, 'eth');
-    await setSubnodeOwner(ethNode, 'agi');
-    await setSubnodeOwner(agiNode, 'agent');
-    await setSubnodeOwner(agiNode, 'club');
-    await setSubnodeOwner(agentNode, 'alice');
-    await setSubnodeOwner(clubNode, 'validator');
+    await setSubnodeOwner(rootNode, 'eth', owner, 'eth');
+    await setSubnodeOwner(ethNode, 'agi', owner, 'agi.eth');
+    await setSubnodeOwner(agiNode, 'agent', owner, 'agent.agi.eth');
+    await setSubnodeOwner(agiNode, 'club', owner, 'club.agi.eth');
+    await setSubnodeOwner(agentNode, 'alice', accounts[1], 'alice.agent.agi.eth');
+    await setSubnodeOwner(clubNode, 'validator', accounts[2], 'validator.club.agi.eth');
 
     const ensConfigPath = configPath('ens', variant);
     const ensConfig = readConfig('ens', variant);
