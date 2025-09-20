@@ -107,7 +107,7 @@ Generate single-file Solidity sources for third-party verifiers with the helper 
 ./scripts/flatten.sh
 ```
 
-The script writes flattened sources to `artifacts-public/flat/`, reusing the repository's local `truffle-flattener` installation. If the script is unavailable in your shell, fall back to the underlying command:
+The script writes flattened sources to `artifacts-public/flat/`, mirroring the contract subdirectories (for example `core/StakeManager.flat.sol`) and skipping library/test harness directories so the output focuses on deployable entrypoints. It reuses the repository's local `truffle-flattener` installation. If the script is unavailable in your shell, fall back to the underlying command:
 
 ```bash
 npx truffle-flattener <path-to-contract> > artifacts-public/flat/<Contract>.flat.sol
