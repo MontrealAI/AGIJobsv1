@@ -92,7 +92,7 @@ module.exports = async function (callback) {
       throw new Error('slashBpsMax mismatch');
     }
 
-    console.log('Wiring check passed');
+    console.log('WIRING OK');
     callback();
   } catch (err) {
     console.error(err);
