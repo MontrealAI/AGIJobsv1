@@ -12,7 +12,7 @@
     "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
     "coverage:check": "node scripts/check-coverage.js",
     "gas": "REPORT_GAS=true truffle test",
-    "migrate:dev": "truffle migrate --reset --network development",
+    "migrate:dev": "truffle migrate --reset --network development && truffle exec scripts/seed-ens-dev.js --network development",
     "migrate:sepolia": "truffle migrate --reset --network sepolia",
     "verify:sepolia": "truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network sepolia",
     "export:abis": "node scripts/export-abis.js",
