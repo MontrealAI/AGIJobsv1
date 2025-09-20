@@ -1,20 +1,13 @@
 const JobRegistry = artifacts.require('JobRegistry');
-const StakeManager = artifacts.require('StakeManager');
-const FeePool = artifacts.require('FeePool');
-const ValidationModule = artifacts.require('ValidationModule');
-const DisputeModule = artifacts.require('DisputeModule');
-const ReputationEngine = artifacts.require('ReputationEngine');
-const IdentityRegistry = artifacts.require('IdentityRegistry');
-const CertificateNFT = artifacts.require('CertificateNFT');
 
-const OWNABLE_MODULES = [
-  StakeManager,
-  FeePool,
-  ValidationModule,
-  DisputeModule,
-  ReputationEngine,
-  IdentityRegistry,
-  CertificateNFT
+const OWNABLE_MODULE_NAMES = [
+  'StakeManager',
+  'FeePool',
+  'ValidationModule',
+  'DisputeModule',
+  'ReputationEngine',
+  'IdentityRegistry',
+  'CertificateNFT'
 ];
 
 module.exports = async function (_deployer, _network, accounts) {
@@ -40,7 +33,8 @@ module.exports = async function (_deployer, _network, accounts) {
   const timelockAddr = timelock ? web3.utils.toChecksumAddress(timelock) : null;
 
   const jr = await JobRegistry.deployed();
-  for (const Module of OWNABLE_MODULES) {
+  for (const name of OWNABLE_MODULE_NAMES) {
+    const Module = artifacts.require(name);
     const instance = await Module.deployed();
     if (typeof instance.transferOwnership === 'function') {
       await instance.transferOwnership(targetOwner);
@@ -55,5 +49,19 @@ module.exports = async function (_deployer, _network, accounts) {
   }
   if (typeof jr.transferOwnership === 'function') {
     await jr.transferOwnership(targetOwner);
+  }
+
+  const expectedOwner = targetOwner.toLowerCase();
+  const modulesToCheck = [...OWNABLE_MODULE_NAMES, 'JobRegistry'];
+  for (const name of modulesToCheck) {
+    const contractArtifact = artifacts.require(name);
+    const instance = await contractArtifact.deployed();
+    if (typeof instance.owner !== 'function') {
+      continue;
+    }
+    const owner = String(await instance.owner()).toLowerCase();
+    if (owner !== expectedOwner) {
+      throw new Error(`${name} owner not multisig`);
+    }
   }
 };
