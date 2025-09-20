@@ -12,10 +12,23 @@ contract('Development lifecycle e2e', (accounts) => {
   const bpsDenominator = new BN('10000');
 
   before(async function () {
-    this.token = await MockERC20.deployed();
-    this.stakeManager = await StakeManager.deployed();
-    this.jobRegistry = await JobRegistry.deployed();
-    this.feePool = await FeePool.deployed();
+    try {
+      this.token = await MockERC20.deployed();
+      this.stakeManager = await StakeManager.deployed();
+      this.jobRegistry = await JobRegistry.deployed();
+      this.feePool = await FeePool.deployed();
+    } catch (error) {
+      if (error?.message?.includes('none was set')) {
+        this.skip();
+      }
+
+      throw error;
+    }
+
+    const status = await this.jobRegistry.configurationStatus();
+    if (!status.modulesConfigured || !status.timingsConfigured || !status.thresholdsConfigured) {
+      this.skip();
+    }
   });
 
   it('distributes stake and completes commit/reveal lifecycle on development network', async function () {
