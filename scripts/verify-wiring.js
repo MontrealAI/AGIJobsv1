@@ -82,6 +82,14 @@ async function fetchTokenMetadata(address) {
   return { decimals, symbol, name };
 }
 
+function normalizeString(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
 module.exports = async function (callback) {
   try {
     const { GOV_SAFE, TIMELOCK_ADDR } = process.env;
@@ -196,6 +204,9 @@ module.exports = async function (callback) {
     }
 
     if (agiCfg) {
+      const expectedSymbol = normalizeString(agiCfg.symbol);
+      const expectedName = normalizeString(agiCfg.name);
+
       if (agiCfg.token && typeof agiCfg.token === 'string' && agiCfg.token !== 'mock') {
         expectEq(stakeToken, agiCfg.token, 'staking.stakeToken');
         expectEq(feeToken, agiCfg.token, 'feePool.feeToken');
@@ -214,6 +225,34 @@ module.exports = async function (callback) {
 
       if (agiCfg.burnAddress) {
         expectEq(feeBurnAddress, agiCfg.burnAddress, 'feePool.burnAddress');
+      }
+
+      if (expectedSymbol) {
+        const actualSymbol = normalizeString(tokenMetadata.symbol);
+        if (!actualSymbol) {
+          throw new Error(
+            `Stake token at ${stakeToken} did not return a symbol but ${expectedSymbol} was configured`
+          );
+        }
+        if (actualSymbol !== expectedSymbol) {
+          throw new Error(
+            `Stake token symbol mismatch: expected "${expectedSymbol}" but token reported "${actualSymbol}"`
+          );
+        }
+      }
+
+      if (expectedName) {
+        const actualName = normalizeString(tokenMetadata.name);
+        if (!actualName) {
+          throw new Error(
+            `Stake token at ${stakeToken} did not return a name but ${expectedName} was configured`
+          );
+        }
+        if (actualName !== expectedName) {
+          throw new Error(
+            `Stake token name mismatch: expected "${expectedName}" but token reported "${actualName}"`
+          );
+        }
       }
     }
 

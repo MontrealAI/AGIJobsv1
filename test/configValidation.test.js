@@ -20,6 +20,8 @@ contract('Configuration validation', () => {
       const agiMainnetPath = path.join(tmpDir, 'agialpha.mainnet.json');
       const agiMainnet = JSON.parse(fs.readFileSync(agiMainnetPath, 'utf8'));
       agiMainnet.token = '0x0000000000000000000000000000000000000000';
+      agiMainnet.symbol = '';
+      agiMainnet.name = '';
       fs.writeFileSync(agiMainnetPath, JSON.stringify(agiMainnet, null, 2));
 
       const ensMainnetPath = path.join(tmpDir, 'ens.mainnet.json');
@@ -38,6 +40,14 @@ contract('Configuration validation', () => {
       assert.isTrue(
         errors.some((message) => message.includes('agialpha.mainnet.json')),
         'should flag token address override'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('symbol must not be empty')),
+        'should flag missing token symbol metadata'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('name must not be empty')),
+        'should flag missing token name metadata'
       );
       assert.isTrue(
         errors.some((message) => message.includes('ens.mainnet.json')),

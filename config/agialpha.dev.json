@@ -1,5 +1,7 @@
 {
   "token": "mock",
+  "symbol": "mAGIA",
+  "name": "Mock AGI Alpha",
   "decimals": 18,
   "burnAddress": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
 }

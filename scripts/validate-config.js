@@ -25,6 +25,28 @@ function addError(errors, fileLabel, message) {
   errors.push(`${fileLabel}: ${message}`);
 }
 
+function ensureString(errors, fileLabel, object, key, { required = false, nonEmpty = false } = {}) {
+  const value = object[key];
+
+  if (value === null || value === undefined) {
+    if (required) {
+      addError(errors, fileLabel, `${key} must be provided`);
+    }
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    addError(errors, fileLabel, `${key} must be a string`);
+    return null;
+  }
+
+  if (nonEmpty && value.trim().length === 0) {
+    addError(errors, fileLabel, `${key} must not be empty`);
+  }
+
+  return value;
+}
+
 function ensureInteger(errors, fileLabel, object, key, { min, max, positive } = {}) {
   const value = object[key];
   if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
@@ -87,6 +109,9 @@ function validateAgiAlphaConfig(errors, fileLabel, data, { variant }) {
   if (decimals !== null && (variant === 'mainnet' || variant === 'sepolia') && decimals !== 18) {
     addError(errors, fileLabel, 'decimals must be 18 for the production token');
   }
+
+  ensureString(errors, fileLabel, data, 'symbol', { required: true, nonEmpty: true });
+  ensureString(errors, fileLabel, data, 'name', { required: true, nonEmpty: true });
 
   const burnAddress = data.burnAddress;
   validateAddress(errors, fileLabel, burnAddress, { field: 'burnAddress' });
@@ -285,5 +310,6 @@ module.exports = {
     validateEnsRoot,
     ensureInteger,
     validateAddress,
+    ensureString,
   },
 };

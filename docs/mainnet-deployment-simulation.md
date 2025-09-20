@@ -42,8 +42,8 @@ pre-flight checklist before running against the live network.
    `truffle console --network mainnet`. Because the simulation lacked a real RPC
    endpoint, no stateful checks were executed; instead, the wiring script logic
    was reviewed to ensure it enforces the Safe/timelock ownership rules **and**
-   now fails if the deployed `$AGIALPHA` token, burn sink, or ENS node hashes
-   diverge from the JSON configuration.【F:scripts/verify-wiring.js†L1-L159】
+   now fails if the deployed `$AGIALPHA` token, its symbol/name metadata, burn
+   sink, or ENS node hashes diverge from the JSON configuration.【F:scripts/verify-wiring.js†L1-L200】
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
@@ -130,7 +130,7 @@ Follow up with manual spot-checks using a console or block explorer:
 
 If governance requires a live smoke test, execute a read-only interaction (e.g., `IdentityRegistry.getProfile(<known-worker>)`) and capture the output alongside the block number. No such checks were run in this simulation.
 
-`scripts/verify-wiring.js` enforces these invariants by loading deployed artifacts and comparing them against the governance parameters from `config/params.json`. It expects either `GOV_SAFE` or `TIMELOCK_ADDR` to be present in the environment and aborts if any module is miswired or owned by an unexpected address.【F:scripts/verify-wiring.js†L1-L82】 For interactive spot checks, attach to the deployed contracts with `truffle console --network mainnet` and run commands such as:
+`scripts/verify-wiring.js` enforces these invariants by loading deployed artifacts and comparing them against the governance parameters from `config/params.json`. It expects either `GOV_SAFE` or `TIMELOCK_ADDR` to be present in the environment and aborts if any module is miswired, owned by an unexpected address, or wired to a token whose symbol/name metadata disagrees with the configuration.【F:scripts/verify-wiring.js†L1-L200】 For interactive spot checks, attach to the deployed contracts with `truffle console --network mainnet` and run commands such as:
 
 ```
 // Confirm the staking token binding
