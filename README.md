@@ -33,26 +33,26 @@ Edit configuration files under `config/` to match the deployment environment:
 The repository is pre-configured for Ethereum mainnet and the production $AGIALPHA stake token. Confirm the following addresses
 in `config/agialpha.mainnet.json` and `config/ens.mainnet.json` before migrating:
 
-| Component | Value |
-| --- | --- |
-| Stake token (`$AGIALPHA`) | `0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA` |
-| Token decimals | `18` |
-| Stake burn address | `0x000000000000000000000000000000000000dEaD` |
-| ENS registry | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e` |
-| Agent ENS root | `agent.agi.eth` (`0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d`) |
-| Club ENS root | `club.agi.eth` (`0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16`) |
+| Component                 | Value                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| Stake token (`$AGIALPHA`) | `0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA`                                           |
+| Token decimals            | `18`                                                                                   |
+| Stake burn address        | `0x000000000000000000000000000000000000dEaD`                                           |
+| ENS registry              | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e`                                           |
+| Agent ENS root            | `agent.agi.eth` (`0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d`) |
+| Club ENS root             | `club.agi.eth` (`0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16`)  |
 
 Operational parameters shipped in `config/params.json` align with the governance-approved mainnet timings:
 
-| Parameter | Value | Notes |
-| --- | --- | --- |
-| `commitWindow` | `604800` seconds | 7 days to collect worker commits. |
-| `revealWindow` | `86400` seconds | 1 day for reveal submissions. |
-| `disputeWindow` | `259200` seconds | 3 days for dispute escalation. |
-| `approvalThresholdBps` | `6000` | 60% reveal approval threshold. |
-| `quorumMin` / `quorumMax` | `3` / `11` | Bounds for validator committee size. |
-| `feeBps` | `250` | 2.5% protocol fee. |
-| `slashBpsMax` | `2000` | Maximum 20% slash per dispute. |
+| Parameter                 | Value            | Notes                                |
+| ------------------------- | ---------------- | ------------------------------------ |
+| `commitWindow`            | `604800` seconds | 7 days to collect worker commits.    |
+| `revealWindow`            | `86400` seconds  | 1 day for reveal submissions.        |
+| `disputeWindow`           | `259200` seconds | 3 days for dispute escalation.       |
+| `approvalThresholdBps`    | `6000`           | 60% reveal approval threshold.       |
+| `quorumMin` / `quorumMax` | `3` / `11`       | Bounds for validator committee size. |
+| `feeBps`                  | `250`            | 2.5% protocol fee.                   |
+| `slashBpsMax`             | `2000`           | Maximum 20% slash per dispute.       |
 
 ## Deploy (Sepolia)
 
@@ -64,6 +64,23 @@ npm run export:artifacts
 ```
 
 `npm run export:artifacts` performs a deterministic local migration, exports network-specific addresses, and generates sanitized ABI bundles under `artifacts-public/`. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
+
+## Verify (Mainnet)
+
+```bash
+npm run verify:mainnet
+```
+
+This command calls `truffle run verify` with the production deployment profile so the contracts above receive source-level verification on Etherscan. If the API submission fails (for example, because the flatten step times out), use the helper script in `scripts/flatten.sh` to regenerate the single-file artifacts before retrying the verification request.
+
+- IdentityRegistry — [0x0FAa08A6f25B72b9394145e080cE407f570203a4](https://etherscan.io/address/0x0FAa08A6f25B72b9394145e080cE407f570203a4#code)
+- StakeManager — [0x312cAA260EaDba4012F024D21F431eA1Da01EBFE](https://etherscan.io/address/0x312cAA260EaDba4012F024D21F431eA1Da01EBFE#code)
+- FeePool — [0x2B2C4B855505F5Ac4839b1B2cc6BCEf76FF8F26A](https://etherscan.io/address/0x2B2C4B855505F5Ac4839b1B2cc6BCEf76FF8F26A#code)
+- ValidationModule — [0xE72B348bCA4DAAD3d8886342557d581B50Bf3971](https://etherscan.io/address/0xE72B348bCA4DAAD3d8886342557d581B50Bf3971#code)
+- DisputeModule — [0x21A21fa613917600e9dDE4441920562bB6238DaE](https://etherscan.io/address/0x21A21fa613917600e9dDE4441920562bB6238DaE#code)
+- ReputationEngine — [0x3eEAEf0dddbda233651dc839591b992795Ba7168](https://etherscan.io/address/0x3eEAEf0dddbda233651dc839591b992795Ba7168#code)
+- CertificateNFT — [0x346422cF9c620668089453838EDD1a30F9b1A273](https://etherscan.io/address/0x346422cF9c620668089453838EDD1a30F9b1A273#code)
+- JobRegistry — [0x026A3CA6397910FD2BD338a79D4105c732A3426C](https://etherscan.io/address/0x026A3CA6397910FD2BD338a79D4105c732A3426C#code)
 
 ## Flatten contracts
 
