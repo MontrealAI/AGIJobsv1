@@ -30,21 +30,22 @@
   "devDependencies": {
     "@commitlint/cli": "^19.0.3",
     "@commitlint/config-conventional": "^19.0.3",
+    "@nomiclabs/hardhat-truffle5": "^2.1.0",
+    "@openzeppelin/test-helpers": "^0.5.16",
     "@truffle/hdwallet-provider": "^2.1.14",
     "dotenv": "^16.4.5",
     "eth-ens-namehash": "^2.0.8",
     "eth-gas-reporter": "^0.2.27",
+    "hardhat": "^2.17.2",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.0",
     "prettier": "^3.3.3",
     "solhint": "^3.6.2",
     "solidity-coverage": "^0.8.16",
     "truffle": "^5.11.5",
-    "truffle-plugin-verify": "^0.6.0",
+    "truffle-flattener": "^1.6.0",
     "truffle-hardhat-coverage": "file:tools/truffle-hardhat-coverage",
-    "@openzeppelin/test-helpers": "^0.5.16",
-    "hardhat": "^2.17.2",
-    "@nomiclabs/hardhat-truffle5": "^2.1.0"
+    "truffle-plugin-verify": "^0.6.0"
   },
   "lint-staged": {
     "*.{js,json,md,yml,yaml}": [

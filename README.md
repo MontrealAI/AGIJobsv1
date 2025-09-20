@@ -65,6 +65,20 @@ npm run export:artifacts
 
 `npm run export:artifacts` performs a deterministic local migration, exports network-specific addresses, and generates sanitized ABI bundles under `artifacts-public/`. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
 
+## Flatten contracts
+
+Generate single-file Solidity sources for third-party verifiers with the helper script:
+
+```bash
+./scripts/flatten.sh
+```
+
+The script writes flattened sources to `artifacts-public/flat/`, reusing the repository's local `truffle-flattener` installation. If the script is unavailable in your shell, fall back to the underlying command:
+
+```bash
+npx truffle-flattener <path-to-contract> > artifacts-public/flat/<Contract>.flat.sol
+```
+
 ## Verify wiring
 
 Run the wiring checker to confirm deployed contract addresses match the expected configuration:
