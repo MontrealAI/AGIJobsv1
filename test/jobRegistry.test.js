@@ -711,6 +711,89 @@ contract('JobRegistry', (accounts) => {
     );
   });
 
+  it('allows the owner to timeout unrevealed jobs after the dispute window', async function () {
+    await this.jobRegistry.setThresholds(6000, 1, 11, 250, 10000, { from: deployer });
+    const stakeAmount = web3.utils.toBN('400');
+    await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const { logs } = await this.jobRegistry.createJob(stakeAmount, { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    const committedJob = await this.jobRegistry.jobs(jobId);
+    await time.increaseTo(committedJob.disputeDeadline.toNumber() + 1);
+
+    const slashAmount = web3.utils.toBN('300');
+    const receipt = await this.jobRegistry.timeoutJob(jobId, slashAmount, { from: deployer });
+    expectEvent(receipt, 'JobTimedOut', { jobId, slashAmount });
+
+    const finalized = await this.jobRegistry.jobs(jobId);
+    assert.strictEqual(finalized.state.toNumber(), JOB_STATES.Finalized);
+
+    const locked = await this.stakeManager.lockedAmounts(worker);
+    assert.strictEqual(locked.toString(), '0');
+
+    const expectedRemaining = stakeAmount.sub(slashAmount);
+    const remainingDeposits = await this.stakeManager.totalDeposits(worker);
+    assert.strictEqual(remainingDeposits.toString(), expectedRemaining.toString());
+
+    const availableStake = await this.stakeManager.availableStake(worker);
+    assert.strictEqual(availableStake.toString(), expectedRemaining.toString());
+
+    const feePoolBalance = await this.token.balanceOf(this.feePool.address);
+    assert.strictEqual(feePoolBalance.toString(), slashAmount.toString());
+
+    await expectCustomError(
+      this.jobRegistry.timeoutJob(jobId, 0, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Committed}, ${JOB_STATES.Finalized})`
+    );
+  });
+
+  it('enforces timeout preconditions and bounds', async function () {
+    await this.stakeManager.deposit('500', { from: worker });
+    const { logs } = await this.jobRegistry.createJob('500', { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    await expectCustomError(
+      this.jobRegistry.timeoutJob(jobId, 0, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Committed}, ${JOB_STATES.Created})`
+    );
+
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    await expectRevert(
+      this.jobRegistry.timeoutJob(jobId, 0, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.jobRegistry.timeoutJob(jobId, 0, { from: deployer }),
+      'JobRegistry: dispute window active'
+    );
+
+    const committedJob = await this.jobRegistry.jobs(jobId);
+    await time.increaseTo(committedJob.disputeDeadline.toNumber() + 1);
+
+    await expectRevert(
+      this.jobRegistry.timeoutJob(jobId, web3.utils.toBN('600'), { from: deployer }),
+      'JobRegistry: slash exceeds stake'
+    );
+
+    await expectRevert(
+      this.jobRegistry.timeoutJob(jobId, web3.utils.toBN('200'), { from: deployer }),
+      'JobRegistry: slash bounds'
+    );
+
+    const receipt = await this.jobRegistry.timeoutJob(jobId, web3.utils.toBN('100'), { from: deployer });
+    expectEvent(receipt, 'JobTimedOut', { jobId, slashAmount: web3.utils.toBN('100') });
+
+    const finalized = await this.jobRegistry.jobs(jobId);
+    assert.strictEqual(finalized.state.toNumber(), JOB_STATES.Finalized);
+  });
+
   it('prevents finalize from invalid states', async function () {
     const { logs } = await this.jobRegistry.createJob('200', { from: client });
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;

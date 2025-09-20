@@ -66,6 +66,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     event JobFinalized(uint256 indexed jobId, bool success, uint256 feeAmount);
     event JobDisputed(uint256 indexed jobId, address indexed raiser);
     event DisputeResolved(uint256 indexed jobId, bool slashed, uint256 slashAmount);
+    event JobTimedOut(uint256 indexed jobId, uint256 slashAmount);
 
     error InvalidState(JobState expected, JobState actual);
     error WindowExpired(string window);
@@ -289,6 +290,37 @@ contract JobRegistry is Ownable, ReentrancyGuard {
 
         DisputeModule(_modules.dispute).onDisputeResolved(jobId, slashWorker);
         emit DisputeResolved(jobId, slashWorker, slashAmount);
+    }
+
+    /// @notice Finalizes a job that failed to progress before the dispute window elapsed.
+    /// @param jobId Identifier of the job being timed out.
+    /// @param slashAmount Portion of stake to slash when finalizing the timeout.
+    function timeoutJob(uint256 jobId, uint256 slashAmount) external onlyOwner nonReentrant {
+        _requireModulesConfigured();
+        _requireThresholdsConfigured();
+
+        Job storage job = jobs[jobId];
+        _requireState(job.state, JobState.Committed);
+
+        if (block.timestamp <= job.disputeDeadline) {
+            revert("JobRegistry: dispute window active");
+        }
+
+        uint256 stakeAmount = job.stakeAmount;
+        if (slashAmount > stakeAmount) {
+            revert("JobRegistry: slash exceeds stake");
+        }
+
+        uint256 maxSlash = (stakeAmount * thresholds.slashBpsMax) / BPS_DENOMINATOR;
+        if (slashAmount > maxSlash) {
+            revert("JobRegistry: slash bounds");
+        }
+
+        job.state = JobState.Finalized;
+
+        StakeManager(_modules.staking).settleStake(job.worker, stakeAmount - slashAmount, slashAmount);
+
+        emit JobTimedOut(jobId, slashAmount);
     }
 
     function _requireState(JobState current, JobState expected) private pure {
