@@ -19,6 +19,7 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 - Ownership transferred to a multisig Safe via migration `5_transfer_ownership.js`.
 - Timelock address (if provided) required for parameter mutation.
 - Emergency allow list limited to explicitly set addresses in `IdentityRegistry`.
+- StakeManager exposes a governance-only emergency release path to unlock stuck worker stake without touching balances.
 - Unit tests cover lifecycle happy paths and dispute resolution bounds.
 - Static analysis (Solhint, Slither) and fuzzing (Echidna smoke) wired via CI.
 

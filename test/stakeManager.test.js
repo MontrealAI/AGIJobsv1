@@ -176,5 +176,31 @@ contract('StakeManager', (accounts) => {
       expectEvent(receipt, 'FeeRecipientUpdated', { feeRecipient });
       assert.strictEqual(await this.manager.feeRecipient(), feeRecipient);
     });
+
+    it('allows the owner to perform emergency releases while enforcing bounds', async function () {
+      await this.manager.deposit('1000', { from: staker });
+      await this.manager.lockStake(staker, '600', { from: registry });
+
+      await expectRevert(
+        this.manager.emergencyRelease(staker, '0', { from: owner }),
+        'StakeManager: amount'
+      );
+
+      await expectRevert(
+        this.manager.emergencyRelease(staker, '601', { from: owner }),
+        'StakeManager: exceeds locked'
+      );
+
+      await expectRevert(
+        this.manager.emergencyRelease(staker, '100', { from: other }),
+        'Ownable: caller is not the owner'
+      );
+
+      const receipt = await this.manager.emergencyRelease(staker, '250', { from: owner });
+      expectEvent(receipt, 'Released', { account: staker, amount: web3.utils.toBN(250) });
+
+      assert.strictEqual((await this.manager.lockedAmounts(staker)).toString(), '350');
+      assert.strictEqual((await this.manager.availableStake(staker)).toString(), '650');
+    });
   });
 });
