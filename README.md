@@ -1,5 +1,7 @@
 # AGIJobsv1 — Protocol-Only (Truffle)
 
+[![Coverage](https://codecov.io/gh/agi-protocol/AGIJobsv1/branch/main/graph/badge.svg)](https://codecov.io/gh/agi-protocol/AGIJobsv1)
+
 Institutional-grade, ENS-gated job coordination protocol. Contracts only: Solidity, Truffle migrations, tests, CI.
 
 ## Quickstart
@@ -11,7 +13,7 @@ npm run test
 npm run coverage
 ```
 
-`npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate.
+`npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
 
 ## Configure
 
