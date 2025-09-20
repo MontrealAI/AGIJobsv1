@@ -25,8 +25,8 @@ cp .env.example .env
 
 Edit configuration files under `config/` to match the deployment environment:
 
-- `config/agialpha.dev.json` / `config/agialpha.sepolia.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters and
-  burn address. The development variant ships with a `mock` stake token marker that triggers a mock deployment during
+- `config/agialpha.dev.json` / `config/agialpha.sepolia.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters (address,
+  symbol, name, decimals) and burn address. The development variant ships with a `mock` stake token marker that triggers a mock deployment during
   migrations, while the dedicated Sepolia profile prevents local development runs from overwriting testnet addresses.
 - `config/ens.dev.json` / `config/ens.sepolia.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (refresh
   `npm run namehash -- <variant>` or `node scripts/compute-namehash.js <path-to-config>`; the variant command defaults to
@@ -121,7 +121,7 @@ Run the wiring checker to confirm deployed contract addresses match the expected
 npm run wire:verify
 ```
 
-The checker now enforces the stake token wiring and ENS configuration in addition to ownership. It cross-references `config/agialpha.*.json` and `config/ens.*.json` so production runs fail fast if the contracts are bound to the wrong `$AGIALPHA` token, burn address, or ENS roots. As part of the wiring audit it also queries the stake token's ERC-20 metadata to ensure the decimals cached in `StakeManager` match what the token contract reports on-chain, catching misconfigured deployments before they advance.
+The checker now enforces the stake token wiring and ENS configuration in addition to ownership. It cross-references `config/agialpha.*.json` and `config/ens.*.json` so production runs fail fast if the contracts are bound to the wrong `$AGIALPHA` token, metadata, burn address, or ENS roots. As part of the wiring audit it also queries the stake token's ERC-20 metadata to ensure the symbol, name, and decimals cached in configuration match what the token contract reports on-chain, catching misconfigured deployments before they advance.
 
 The script defaults to the local development network. Override it by setting `NETWORK` before invoking the command, for example:
 
