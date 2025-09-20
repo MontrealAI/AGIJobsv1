@@ -83,6 +83,11 @@ module.exports = async function (callback) {
     );
 
     expectEq(await staking.jobRegistry(), jobRegistry.address, 'staking.jobRegistry');
+    expectEq(
+      await staking.feeRecipient(),
+      feePool.address,
+      'staking.feeRecipient'
+    );
     expectEq(await feePool.jobRegistry(), jobRegistry.address, 'feePool.jobRegistry');
     expectEq(await dispute.jobRegistry(), jobRegistry.address, 'dispute.jobRegistry');
     expectEq(await reputation.jobRegistry(), jobRegistry.address, 'reputation.jobRegistry');
