@@ -628,6 +628,10 @@ contract('JobRegistry', (accounts) => {
       'JobRegistry: quorum'
     );
     await expectRevert(
+      this.jobRegistry.setThresholds(12000, 1, 11, 250, 2000, { from: deployer }),
+      'JobRegistry: approval bps'
+    );
+    await expectRevert(
       this.jobRegistry.setThresholds(6000, 1, 11, 20000, 2000, { from: deployer }),
       'JobRegistry: fee bps'
     );

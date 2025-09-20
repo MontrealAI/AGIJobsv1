@@ -339,6 +339,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         return
             thresholds.quorumMin > 0 &&
             thresholds.quorumMin <= thresholds.quorumMax &&
+            thresholds.approvalThresholdBps <= denominator &&
             thresholds.feeBps <= denominator &&
             thresholds.slashBpsMax <= denominator;
     }
