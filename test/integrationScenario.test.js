@@ -7,6 +7,8 @@ const DisputeModule = artifacts.require('DisputeModule');
 const ReputationEngine = artifacts.require('ReputationEngine');
 const JobRegistry = artifacts.require('JobRegistry');
 const MockERC20 = artifacts.require('MockERC20');
+const WorkerActor = artifacts.require('WorkerActor');
+const ClientActor = artifacts.require('ClientActor');
 
 contract('Protocol integration scenarios', (accounts) => {
   const [deployer, worker, client, emergency, feeSink] = accounts;
@@ -113,5 +115,44 @@ contract('Protocol integration scenarios', (accounts) => {
     await this.stakeManager.withdraw(availableAfter, { from: worker });
 
     await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: emergency }));
+  });
+
+  it('supports actor-driven disputes that resolve without slashing', async function () {
+    const workerActor = await WorkerActor.new(
+      this.stakeManager.address,
+      this.jobRegistry.address,
+      this.token.address,
+      { from: worker }
+    );
+    const clientActor = await ClientActor.new(this.jobRegistry.address, { from: client });
+
+    const stakeAmount = new BN('800');
+    await this.token.transfer(workerActor.address, stakeAmount, { from: worker });
+
+    await workerActor.deposit(stakeAmount, { from: worker });
+
+    await clientActor.createJob(stakeAmount, { from: client });
+    const jobId = await this.jobRegistry.totalJobs();
+
+    const secret = web3.utils.randomHex(32);
+    const commitHash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await workerActor.commit(jobId, commitHash, { from: worker });
+
+    await clientActor.raiseDispute(jobId, { from: client });
+
+    const resolution = await this.jobRegistry.resolveDispute(jobId, false, 0, -5, { from: deployer });
+    expectEvent(resolution, 'DisputeResolved', {
+      jobId,
+      slashed: false,
+      slashAmount: new BN('0'),
+    });
+
+    const availableStake = await this.stakeManager.availableStake(workerActor.address);
+    assert.strictEqual(availableStake.toString(), stakeAmount.toString());
+    assert.strictEqual((await this.feePool.totalFeesRecorded()).toString(), '0');
+
+    await workerActor.withdraw(stakeAmount, { from: worker });
+    assert.strictEqual((await this.token.balanceOf(workerActor.address)).toString(), stakeAmount.toString());
+    assert.strictEqual((await this.reputation.reputation(workerActor.address)).toString(), '-5');
   });
 });

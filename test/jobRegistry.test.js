@@ -12,6 +12,18 @@ const MockERC20 = artifacts.require('MockERC20');
 const CUSTOM_ERROR_TYPES = {
   NotConfigured: ['bytes32'],
   UnauthorizedDisputeRaiser: ['uint256', 'address'],
+  InvalidState: ['uint8', 'uint8'],
+  WindowExpired: ['string'],
+  FeeBounds: [],
+};
+
+const JOB_STATES = {
+  None: 0,
+  Created: 1,
+  Committed: 2,
+  Revealed: 3,
+  Finalized: 4,
+  Disputed: 5,
 };
 
 function stripQuotes(value) {
@@ -312,13 +324,19 @@ contract('JobRegistry', (accounts) => {
   });
 
   it('rejects raiseDispute calls from invalid states', async function () {
-    await expectRevert.unspecified(this.jobRegistry.raiseDispute(1, { from: client }));
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(1, { from: client }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.None})`
+    );
 
     await this.stakeManager.deposit(web3.utils.toBN('100'), { from: worker });
     const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('100'), { from: client });
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
 
-    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(jobId, { from: client }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.Created})`
+    );
   });
 
   it('restricts dispute raising to authorized actors', async function () {
@@ -358,6 +376,42 @@ contract('JobRegistry', (accounts) => {
 
     const emergencyReceipt = await this.jobRegistry.raiseDispute(emergencyJobId, { from: emergency });
     expectEvent(emergencyReceipt, 'JobDisputed', { jobId: emergencyJobId, raiser: emergency });
+  });
+
+  it('requires the owner to resolve disputes and enforces dispute preconditions', async function () {
+    await this.stakeManager.deposit(web3.utils.toBN('300'), { from: worker });
+    const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('300'), { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+
+    await expectRevert(
+      this.jobRegistry.resolveDispute(jobId, false, 0, 0, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectCustomError(
+      this.jobRegistry.resolveDispute(jobId, false, 0, 0, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Disputed}, ${JOB_STATES.Committed})`
+    );
+
+    const disputeTx = await this.jobRegistry.raiseDispute(jobId, { from: client });
+    expectEvent(disputeTx, 'JobDisputed', { jobId, raiser: client });
+
+    await expectRevert(
+      this.jobRegistry.resolveDispute(jobId, true, web3.utils.toBN('600'), 0, { from: deployer }),
+      'JobRegistry: slash bounds'
+    );
+
+    const resolveTx = await this.jobRegistry.resolveDispute(jobId, false, 0, 3, { from: deployer });
+    expectEvent(resolveTx, 'DisputeResolved', {
+      jobId,
+      slashed: false,
+      slashAmount: web3.utils.toBN(0),
+    });
+    assert.strictEqual((await this.reputation.reputation(worker)).toString(), '3');
+    assert.strictEqual((await this.stakeManager.lockedAmounts(worker)).toString(), '0');
   });
 
   it('runs through a happy path lifecycle', async function () {
@@ -426,8 +480,9 @@ contract('JobRegistry', (accounts) => {
     const { logs } = await this.jobRegistry.createJob(web3.utils.toBN('100'), { from: client });
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
     await time.increase(10);
-    await expectRevert.unspecified(
-      this.jobRegistry.commitJob(jobId, web3.utils.randomHex(32), { from: worker })
+    await expectCustomError(
+      this.jobRegistry.commitJob(jobId, web3.utils.randomHex(32), { from: worker }),
+      'JobRegistry.WindowExpired("commit")'
     );
   });
 
@@ -480,7 +535,10 @@ contract('JobRegistry', (accounts) => {
     const disputeDeadline = web3.utils.toBN(job.disputeDeadline);
     await time.increaseTo(disputeDeadline.addn(1));
 
-    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(jobId, { from: client }),
+      'JobRegistry.WindowExpired("dispute")'
+    );
   });
 
   it('validates configuration inputs', async function () {
@@ -561,7 +619,10 @@ contract('JobRegistry', (accounts) => {
     const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
     await this.jobRegistry.commitJob(jobId, hash, { from: worker });
 
-    await expectRevert.unspecified(this.jobRegistry.commitJob(jobId, hash, { from: worker }));
+    await expectCustomError(
+      this.jobRegistry.commitJob(jobId, hash, { from: worker }),
+      `JobRegistry.InvalidState(${JOB_STATES.Created}, ${JOB_STATES.Committed})`
+    );
 
     await expectRevert(
       this.jobRegistry.revealJob(jobId, secret, { from: stranger }),
@@ -574,7 +635,10 @@ contract('JobRegistry', (accounts) => {
     );
 
     await time.increase(5);
-    await expectRevert.unspecified(this.jobRegistry.revealJob(jobId, secret, { from: worker }));
+    await expectCustomError(
+      this.jobRegistry.revealJob(jobId, secret, { from: worker }),
+      'JobRegistry.WindowExpired("reveal")'
+    );
   });
 
   it('handles finalize and dispute windows across branches', async function () {
@@ -585,11 +649,17 @@ contract('JobRegistry', (accounts) => {
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
     const secret = web3.utils.randomHex(32);
     const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
-    await expectRevert.unspecified(this.jobRegistry.raiseDispute(jobId, { from: client }));
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(jobId, { from: client }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.Created})`
+    );
     await this.jobRegistry.commitJob(jobId, hash, { from: worker });
     await this.jobRegistry.revealJob(jobId, secret, { from: worker });
 
-    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: stranger }));
+    await expectRevert(
+      this.jobRegistry.finalizeJob(jobId, true, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
 
     const finalizeZeroFee = await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
     expectEvent(finalizeZeroFee, 'JobFinalized', { feeAmount: web3.utils.toBN(0) });
@@ -603,21 +673,30 @@ contract('JobRegistry', (accounts) => {
     await this.jobRegistry.revealJob(disputedJobId, disputeSecret, { from: worker });
     const disputedJob = await this.jobRegistry.jobs(disputedJobId);
     await time.increaseTo(disputedJob.disputeDeadline.toNumber() + 1);
-    await expectRevert.unspecified(this.jobRegistry.raiseDispute(disputedJobId, { from: client }));
+    await expectCustomError(
+      this.jobRegistry.raiseDispute(disputedJobId, { from: client }),
+      'JobRegistry.WindowExpired("dispute")'
+    );
   });
 
   it('prevents finalize from invalid states', async function () {
     const { logs } = await this.jobRegistry.createJob('200', { from: client });
     const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
 
-    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: deployer }));
+    await expectCustomError(
+      this.jobRegistry.finalizeJob(jobId, true, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.Created})`
+    );
 
     const secret = web3.utils.randomHex(32);
     const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
     await this.stakeManager.deposit('200', { from: worker });
     await this.jobRegistry.commitJob(jobId, hash, { from: worker });
 
-    await expectRevert.unspecified(this.jobRegistry.finalizeJob(jobId, true, { from: deployer }));
+    await expectCustomError(
+      this.jobRegistry.finalizeJob(jobId, true, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.Committed})`
+    );
   });
 
   it('resolves disputes in both slash and release modes', async function () {
