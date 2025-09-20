@@ -114,6 +114,8 @@ Run the wiring checker to confirm deployed contract addresses match the expected
 npm run wire:verify
 ```
 
+The checker now enforces the stake token wiring and ENS configuration in addition to ownership. It cross-references `config/agialpha.*.json` and `config/ens.*.json` so production runs fail fast if the contracts are bound to the wrong `$AGIALPHA` token, burn address, or ENS roots.
+
 The script defaults to the local development network. Override it by setting `NETWORK` before invoking the command, for example:
 
 ```bash

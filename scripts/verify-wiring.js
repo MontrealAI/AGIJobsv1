@@ -8,11 +8,26 @@ const FeePool = artifacts.require('FeePool');
 const CertificateNFT = artifacts.require('CertificateNFT');
 
 const params = require('../config/params.json');
+const { readConfig } = require('./config-loader');
+
+function extractNetwork(argv) {
+  const networkFlagIndex = argv.findIndex((arg) => arg === '--network');
+  if (networkFlagIndex !== -1 && argv[networkFlagIndex + 1]) {
+    return argv[networkFlagIndex + 1];
+  }
+
+  return undefined;
+}
 
 module.exports = async function (callback) {
   try {
     const { GOV_SAFE, TIMELOCK_ADDR } = process.env;
     const expectedOwner = GOV_SAFE || TIMELOCK_ADDR;
+
+    const networkName =
+      extractNetwork(process.argv) || process.env.NETWORK || process.env.TRUFFLE_NETWORK;
+    const agiCfg = readConfig('agialpha', networkName);
+    const ensCfg = readConfig('ens', networkName);
 
     const jobRegistry = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -91,6 +106,55 @@ module.exports = async function (callback) {
     expectEq(await feePool.jobRegistry(), jobRegistry.address, 'feePool.jobRegistry');
     expectEq(await dispute.jobRegistry(), jobRegistry.address, 'dispute.jobRegistry');
     expectEq(await reputation.jobRegistry(), jobRegistry.address, 'reputation.jobRegistry');
+
+    const stakeToken = await staking.stakeToken();
+    const stakeDecimals = Number(await staking.stakeTokenDecimals());
+    const feeToken = await feePool.feeToken();
+    const feeBurnAddress = await feePool.burnAddress();
+
+    if (agiCfg) {
+      if (agiCfg.token && typeof agiCfg.token === 'string' && agiCfg.token !== 'mock') {
+        expectEq(stakeToken, agiCfg.token, 'staking.stakeToken');
+        expectEq(feeToken, agiCfg.token, 'feePool.feeToken');
+      } else {
+        expectEq(feeToken, stakeToken, 'feePool.feeToken matches stakeToken');
+      }
+
+      if (agiCfg.decimals !== undefined && agiCfg.decimals !== null) {
+        const expectedDecimals = Number(agiCfg.decimals);
+        if (stakeDecimals !== expectedDecimals) {
+          throw new Error(
+            `Stake token decimals mismatch: expected ${expectedDecimals} but found ${stakeDecimals}`
+          );
+        }
+      }
+
+      if (agiCfg.burnAddress) {
+        expectEq(feeBurnAddress, agiCfg.burnAddress, 'feePool.burnAddress');
+      }
+    }
+
+    if (ensCfg) {
+      const onChainRegistry = await identity.ensRegistry();
+      const onChainAgentHash = await identity.agentRootHash();
+      const onChainClubHash = await identity.clubRootHash();
+
+      const hasConfiguredRoots = Boolean(ensCfg.agentRootHash && ensCfg.clubRootHash);
+
+      if (ensCfg.registry && hasConfiguredRoots) {
+        expectEq(onChainRegistry, ensCfg.registry, 'identity.ensRegistry');
+      } else if (ensCfg.registry && onChainRegistry.toLowerCase() !== ZERO_ADDRESS) {
+        expectEq(onChainRegistry, ensCfg.registry, 'identity.ensRegistry');
+      }
+
+      if (ensCfg.agentRootHash) {
+        expectEq(onChainAgentHash, ensCfg.agentRootHash, 'identity.agentRootHash');
+      }
+
+      if (ensCfg.clubRootHash) {
+        expectEq(onChainClubHash, ensCfg.clubRootHash, 'identity.clubRootHash');
+      }
+    }
 
     const thresholds = await jobRegistry.thresholds();
     if (Number(thresholds.feeBps) !== params.feeBps) {
