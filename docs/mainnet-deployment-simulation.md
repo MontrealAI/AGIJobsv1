@@ -4,7 +4,7 @@ This document captures a dry-run of the requested mainnet deployment procedure. 
 
 ## 1. Environment preparation
 
-Populate a local `.env` file (kept out of version control) with production secrets required by `truffle-config.js`:
+Populate a local `.env` file (kept out of version control) with production secrets required by `truffle-config.js`. The template in `.env.example` already lists the required variables, reproduced here for clarity:
 
 ```
 MNEMONIC="<production wallet seed phrase>"
@@ -30,7 +30,7 @@ It is expected to replay migrations **2–5**, sourcing deployment parameters fr
 - `config/ens.json`
 - `config/params.json`
 
-During the simulation we validated that these configuration files are present and ready. When running against mainnet ensure:
+During the simulation we verified the configuration payloads to ensure they match production expectations. `config/agialpha.json` pins the live staking token, decimals, and burn address, `config/ens.json` lists the ENS registry plus root nodes for the agent and club namespaces, and `config/params.json` records the governance timing and quorum values. When running against mainnet ensure:
 
 - The deploying account has sufficient ETH for gas.
 - Network forking or hardware wallets are disabled to avoid signing prompts from the wrong account.
@@ -44,7 +44,7 @@ After migrations succeed, run:
 npm run export:artifacts
 ```
 
-This regenerates the JSON artifacts under `artifacts-public/addresses` and `artifacts-public/abis`. Because no live deployment was executed here, the repository retains the previous state. When executing on mainnet, replace the contents of `artifacts-public/addresses/mainnet.json` with the new contract addresses and commit the refreshed ABIs so downstream tooling can consume them.
+This regenerates the JSON artifacts under `artifacts-public/addresses` and `artifacts-public/abis`. Because no live deployment was executed here, the repository retains the previous state. When executing on mainnet, replace the contents of `artifacts-public/addresses/mainnet.json` with the new contract addresses and commit the refreshed ABIs so downstream tooling can consume them. The existing file reflects the last known deployment and serves as a baseline for comparison during the real rollout.
 
 ## 4. Etherscan verification
 
@@ -72,11 +72,11 @@ NETWORK=mainnet npm run wire:verify
 
 Follow up with manual spot-checks using a console or block explorer:
 
-- `StakeManager.stakeToken()` should equal the production staking token address.
+- `StakeManager.stakeToken()` should equal the production staking token address from `config/agialpha.json`.
 - ENS root nodes configured in `config/ens.json` should resolve to the freshly deployed modules.
 - Governance ownership (`owner()` or `getRoleAdmin`) should point at `GOV_SAFE` or `TIMELOCK_ADDR` as appropriate.
 
-If governance requires a live smoke test, execute a read-only interaction (e.g., `IdentityRegistry.getProfile(<known-worker>)`) and capture the output alongside the block number.
+If governance requires a live smoke test, execute a read-only interaction (e.g., `IdentityRegistry.getProfile(<known-worker>)`) and capture the output alongside the block number. No such checks were run in this simulation.
 
 ## 6. Next steps for production
 
