@@ -37,7 +37,7 @@ in `config/agialpha.mainnet.json` and `config/ens.mainnet.json` before migrating
 | ------------------------- | -------------------------------------------------------------------------------------- |
 | Stake token (`$AGIALPHA`) | `0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA`                                           |
 | Token decimals            | `18`                                                                                   |
-| Stake burn address        | `0x000000000000000000000000000000000000dEaD`                                           |
+| Stake burn address        | `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000`                                           |
 | ENS registry              | `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e`                                           |
 | Agent ENS root            | `agent.agi.eth` (`0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d`) |
 | Club ENS root             | `club.agi.eth` (`0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16`)  |
