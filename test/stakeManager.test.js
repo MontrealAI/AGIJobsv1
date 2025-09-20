@@ -1,6 +1,8 @@
 const { expectEvent, expectRevert, constants, BN } = require('@openzeppelin/test-helpers');
 const StakeManager = artifacts.require('StakeManager');
 const MockERC20 = artifacts.require('MockERC20');
+const ReentrantERC20 = artifacts.require('ReentrantERC20');
+const StakeManagerReentrancyAttacker = artifacts.require('StakeManagerReentrancyAttacker');
 
 contract('StakeManager', (accounts) => {
   const [owner, registry, staker, other, feeRecipient] = accounts;
@@ -175,6 +177,50 @@ contract('StakeManager', (accounts) => {
       const receipt = await this.manager.setFeeRecipient(feeRecipient, { from: owner });
       expectEvent(receipt, 'FeeRecipientUpdated', { feeRecipient });
       assert.strictEqual(await this.manager.feeRecipient(), feeRecipient);
+    });
+  });
+
+  describe('reentrancy protections', () => {
+    beforeEach(async function () {
+      this.reentrantToken = await ReentrantERC20.new('Stake', 'RSTK', 18, { from: owner });
+      this.reentrantManager = await StakeManager.new(this.reentrantToken.address, 18, { from: owner });
+      await this.reentrantToken.setReentrantTarget(this.reentrantManager.address, { from: owner });
+      this.reentrancyAttacker = await StakeManagerReentrancyAttacker.new(
+        this.reentrantManager.address,
+        this.reentrantToken.address,
+        { from: owner }
+      );
+
+      await this.reentrantManager.setJobRegistry(registry, { from: owner });
+      await this.reentrantToken.mint(this.reentrancyAttacker.address, '1000', { from: owner });
+      await this.reentrancyAttacker.approveAndDeposit('1000', { from: owner });
+      await this.reentrantManager.lockStake(this.reentrancyAttacker.address, '800', { from: registry });
+    });
+
+    it('prevents reentrant withdrawals from breaking stake accounting', async function () {
+      const receipt = await this.reentrancyAttacker.attemptWithdraw('200', '1', { from: owner });
+      await expectEvent.inTransaction(receipt.tx, this.reentrantManager, 'Withdrawn', {
+        account: this.reentrancyAttacker.address,
+        amount: new BN('200'),
+      });
+
+      assert.strictEqual(
+        (await this.reentrantManager.totalDeposits(this.reentrancyAttacker.address)).toString(),
+        '800'
+      );
+      assert.strictEqual(
+        (await this.reentrantManager.lockedAmounts(this.reentrancyAttacker.address)).toString(),
+        '800'
+      );
+      assert.strictEqual(
+        (await this.reentrantManager.availableStake(this.reentrancyAttacker.address)).toString(),
+        '0'
+      );
+      assert.strictEqual(
+        (await this.reentrantToken.balanceOf(this.reentrancyAttacker.address)).toString(),
+        '200'
+      );
+      assert.isFalse(await this.reentrancyAttacker.reenterCallSucceeded());
     });
   });
 });
