@@ -1,8 +1,11 @@
 const { expectRevert, constants } = require('@openzeppelin/test-helpers');
+const { hash: namehash } = require('eth-ens-namehash');
+
 const IdentityRegistry = artifacts.require('IdentityRegistry');
+const MockENSRegistry = artifacts.require('MockENSRegistry');
 
 contract('IdentityRegistry', (accounts) => {
-  const [owner, stranger, emergency] = accounts;
+  const [owner, stranger, emergency, worker, client] = accounts;
 
   beforeEach(async function () {
     this.registry = await IdentityRegistry.new({ from: owner });
@@ -47,13 +50,86 @@ contract('IdentityRegistry', (accounts) => {
   });
 
   it('validates agent and club node hashes', async function () {
-    const agent = web3.utils.randomHex(32);
-    const club = web3.utils.randomHex(32);
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
     await this.registry.configureMainnet(stranger, agent, club, { from: owner });
 
     assert.isTrue(await this.registry.isAgentNode(agent));
     assert.isFalse(await this.registry.isAgentNode(web3.utils.randomHex(32)));
     assert.isTrue(await this.registry.isClubNode(club));
     assert.isFalse(await this.registry.isClubNode(web3.utils.randomHex(32)));
+  });
+
+  it('rejects zero root hashes during configuration', async function () {
+    await expectRevert(
+      this.registry.configureMainnet(stranger, web3.utils.randomHex(32), '0x'.padEnd(66, '0'), {
+        from: owner,
+      }),
+      'IdentityRegistry: club hash'
+    );
+
+    await expectRevert(
+      this.registry.configureMainnet(stranger, '0x'.padEnd(66, '0'), web3.utils.randomHex(32), {
+        from: owner,
+      }),
+      'IdentityRegistry: agent hash'
+    );
+  });
+
+  describe('ENS membership helpers', () => {
+    const ZERO_NODE = '0x'.padEnd(66, '0');
+    const labelhash = (label) => web3.utils.keccak256(label);
+
+    beforeEach(async function () {
+      this.ens = await MockENSRegistry.new({ from: owner });
+      this.agentRoot = namehash('agent.agi.eth');
+      this.clubRoot = namehash('club.agi.eth');
+
+      await this.registry.configureMainnet(this.ens.address, this.agentRoot, this.clubRoot, { from: owner });
+
+      await this.ens.setSubnodeOwner(ZERO_NODE, labelhash('eth'), owner, { from: owner });
+      const ethNode = namehash('eth');
+      await this.ens.setSubnodeOwner(ethNode, labelhash('agi'), owner, { from: owner });
+      const agiNode = namehash('agi.eth');
+      await this.ens.setSubnodeOwner(agiNode, labelhash('agent'), owner, { from: owner });
+      await this.ens.setSubnodeOwner(agiNode, labelhash('club'), owner, { from: owner });
+    });
+
+    it('derives agent nodes and verifies ownership', async function () {
+      const workerLabel = labelhash('builder');
+      await this.ens.setSubnodeOwner(this.agentRoot, workerLabel, worker, { from: owner });
+
+      assert.isTrue(await this.registry.isAgentAddress(worker, [workerLabel]));
+      assert.isFalse(await this.registry.isAgentAddress(stranger, [workerLabel]));
+
+      assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
+    });
+
+    it('derives nested club nodes for alpha tiers', async function () {
+      const alphaLabel = labelhash('alpha');
+      const alphaNode = web3.utils.soliditySha3({ type: 'bytes32', value: this.clubRoot }, { type: 'bytes32', value: alphaLabel });
+      await this.ens.setSubnodeOwner(this.clubRoot, alphaLabel, owner, { from: owner });
+
+      const memberLabel = labelhash('vip');
+      await this.ens.setSubnodeOwner(alphaNode, memberLabel, client, { from: owner });
+
+      assert.isTrue(await this.registry.isClubAddress(client, [alphaLabel, memberLabel]));
+      assert.isFalse(await this.registry.isClubAddress(worker, [alphaLabel, memberLabel]));
+
+      assert.strictEqual(await this.registry.clubNodeOwner([alphaLabel, memberLabel]), client);
+    });
+
+    it('reverts when ENS registry is not configured', async function () {
+      const unconfigured = await IdentityRegistry.new({ from: owner });
+      await expectRevert(
+        unconfigured.isAgentAddress(worker, [labelhash('any')]),
+        'IdentityRegistry: ENS'
+      );
+    });
+
+    it('resolves root ownership when labels are empty', async function () {
+      assert.strictEqual(await this.registry.agentNodeOwner([]), owner);
+      assert.strictEqual(await this.registry.clubNodeOwner([]), owner);
+    });
   });
 });
