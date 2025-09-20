@@ -25,14 +25,18 @@ cp .env.example .env
 
 Edit configuration files under `config/` to match the deployment environment:
 
-- `config/agialpha.dev.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters and burn address. The development
-  variant ships with a `mock` stake token marker that triggers a mock deployment during migrations.
-- `config/ens.dev.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (refresh namehashes with either
+- `config/agialpha.dev.json` / `config/agialpha.sepolia.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters and
+  burn address. The development variant ships with a `mock` stake token marker that triggers a mock deployment during
+  migrations, while the dedicated Sepolia profile prevents local development runs from overwriting testnet addresses.
+- `config/ens.dev.json` / `config/ens.sepolia.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (refresh
   `npm run namehash -- <variant>` or `node scripts/compute-namehash.js <path-to-config>`; the variant command defaults to
   `mainnet`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
 - Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
   guardrails before broadcasting migrations.
+
+Sepolia deployments now read from their own configuration files, so populate `config/agialpha.sepolia.json` and
+`config/ens.sepolia.json` with the staging token and ENS registry addresses before migrating to that network.
 
 ### Manual verification: ENS namehash script
 
