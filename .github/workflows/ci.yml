@@ -30,6 +30,7 @@ jobs:
           files: coverage/lcov.info
           flags: solidity
           name: solidity-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
       - run: npm run gas | tee gas-report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -14,7 +14,7 @@ npm run coverage
 ```
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. The CI workflow
-uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically.
+uploads `coverage/lcov.info` to Codecov using the repository `CODECOV_TOKEN` secret so the badge above reflects the latest main-branch run automatically, even for private mirrors.
 
 ## Configure
 
