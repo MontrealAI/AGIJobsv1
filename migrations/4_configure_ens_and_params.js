@@ -1,7 +1,8 @@
 const IdentityRegistry = artifacts.require('IdentityRegistry');
-const ensCfg = require('../config/ens.json');
+const { readConfig } = require('../scripts/config-loader');
 
-module.exports = async function (_deployer, _network, _accounts) {
+module.exports = async function (_deployer, network, _accounts) {
+  const ensCfg = readConfig('ens', network);
   const identity = await IdentityRegistry.deployed();
   if (ensCfg.agentRootHash && ensCfg.clubRootHash) {
     await identity.configureMainnet(ensCfg.registry, ensCfg.agentRootHash, ensCfg.clubRootHash);
