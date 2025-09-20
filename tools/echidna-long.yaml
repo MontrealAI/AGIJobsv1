@@ -1,0 +1,5 @@
+testMode: assertion
+seed: 1
+testLimit: 50000
+contract: EchidnaJobRegistryInvariants
+corpusDir: artifacts/echidna-long/corpus
