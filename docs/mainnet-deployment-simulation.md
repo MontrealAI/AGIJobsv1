@@ -19,7 +19,7 @@ pre-flight checklist before running against the live network.
    before switching to mainnet.【F:truffle-config.js†L1-L32】
 2. **Dry-run migrations.** Stage `truffle migrate --reset --network mainnet` and
    confirm that migrations **2–5** will pull parameters from
-   `config/agialpha.json`, `config/ens.json`, and `config/params.json`. No live
+   `config/agialpha.mainnet.json`, `config/ens.mainnet.json`, and `config/params.json`. No live
    RPC call was executed here, but the JSON payloads were rechecked to ensure
    addresses and governance constants align with production expectations.【F:migrations/2_deploy_protocol.js†L1-L200】【F:migrations/3_wire_protocol.js†L1-L200】【F:migrations/4_configure_ens_and_params.js†L1-L200】【F:migrations/5_transfer_ownership.js†L1-L200】
 3. **Prepare artifact export.** After a successful live migration, run
@@ -67,11 +67,11 @@ truffle migrate --reset --network mainnet
 
 It is expected to replay migrations **2–5**, sourcing deployment parameters from:
 
-- `config/agialpha.json`
-- `config/ens.json`
+- `config/agialpha.mainnet.json`
+- `config/ens.mainnet.json`
 - `config/params.json`
 
-During the simulation we verified the configuration payloads to ensure they match production expectations. `config/agialpha.json` pins the live staking token, decimals, and burn address, `config/ens.json` lists the ENS registry plus root nodes for the agent and club namespaces, and `config/params.json` records the governance timing and quorum values. When running against mainnet ensure:
+During the simulation we verified the configuration payloads to ensure they match production expectations. `config/agialpha.mainnet.json` pins the live staking token, decimals, and burn address, `config/ens.mainnet.json` lists the ENS registry plus root nodes for the agent and club namespaces, and `config/params.json` records the governance timing and quorum values. When running against mainnet ensure:
 
 - The deploying account has sufficient ETH for gas.
 - Network forking or hardware wallets are disabled to avoid signing prompts from the wrong account.
@@ -119,8 +119,8 @@ NETWORK=mainnet npm run wire:verify
 
 Follow up with manual spot-checks using a console or block explorer:
 
-- `StakeManager.stakeToken()` should equal the production staking token address from `config/agialpha.json`.
-- ENS root nodes configured in `config/ens.json` should resolve to the freshly deployed modules.
+- `StakeManager.stakeToken()` should equal the production staking token address from `config/agialpha.mainnet.json`.
+- ENS root nodes configured in `config/ens.mainnet.json` should resolve to the freshly deployed modules.
 - Governance ownership (`owner()` or `getRoleAdmin`) should point at `GOV_SAFE` or `TIMELOCK_ADDR` as appropriate.
 
 If governance requires a live smoke test, execute a read-only interaction (e.g., `IdentityRegistry.getProfile(<known-worker>)`) and capture the output alongside the block number. No such checks were run in this simulation.

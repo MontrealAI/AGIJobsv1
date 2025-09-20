@@ -22,14 +22,16 @@ cp .env.example .env
 
 Edit configuration files under `config/` to match the deployment environment:
 
-- `config/agialpha.json` — ERC-20 token parameters and burn address.
-- `config/ens.json` — ENS registry and subdomain roots (run `npm run namehash`).
+- `config/agialpha.dev.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters and burn address. The development
+  variant ships with a `mock` stake token marker that triggers a mock deployment during migrations.
+- `config/ens.dev.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (run `npm run namehash -- <variant>` to
+  refresh namehashes; the command defaults to `mainnet`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
 
 ## Mainnet deployment profile
 
 The repository is pre-configured for Ethereum mainnet and the production $AGIALPHA stake token. Confirm the following addresses
-before migrating:
+in `config/agialpha.mainnet.json` and `config/ens.mainnet.json` before migrating:
 
 | Component | Value |
 | --- | --- |
