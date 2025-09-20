@@ -59,7 +59,9 @@ web_modules/
 coverage.json
 
 # Exported deployment artifacts
-artifacts-public/
+artifacts-public/*
+!artifacts-public/flat/
+!artifacts-public/flat/.gitkeep
 artifacts/
 cache/
 
