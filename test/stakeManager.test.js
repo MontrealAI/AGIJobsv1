@@ -7,8 +7,7 @@ contract('StakeManager', (accounts) => {
   const initialMint = new BN('1000000');
 
   beforeEach(async function () {
-    this.token = await MockERC20.new('Stake', 'STK', 18, { from: owner });
-    await this.token.mint(staker, initialMint, { from: owner });
+    this.token = await MockERC20.new('Stake', 'STK', 18, staker, initialMint, { from: owner });
     this.manager = await StakeManager.new(this.token.address, 18, { from: owner });
   });
 

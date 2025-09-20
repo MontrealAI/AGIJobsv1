@@ -12,7 +12,7 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 import {JobRegistry} from "./JobRegistry.sol";
 import {WorkerActor} from "./testing/WorkerActor.sol";
 import {ClientActor} from "./testing/ClientActor.sol";
-import {MockERC20} from "../testing/MockERC20.sol";
+import {MockERC20} from "../libs/MockERC20.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 
 /* solhint-disable func-name-mixedcase */
@@ -42,7 +42,13 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     uint256 private expectedFees;
 
     constructor() {
-        stakeToken = new MockERC20("Stake Token", "STK", 18);
+        stakeToken = new MockERC20(
+            "Stake Token",
+            "STK",
+            18,
+            address(this),
+            WORKER_INITIAL_BALANCE * workers.length
+        );
         stakeManager = new StakeManager(address(stakeToken), stakeToken.decimals());
         feePool = new FeePool(address(stakeToken), address(0xDEAD));
         validationModule = new ValidationModule();
@@ -73,7 +79,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         for (uint256 i = 0; i < workers.length; ++i) {
             WorkerActor worker = new WorkerActor(stakeManager, jobRegistry, stakeToken);
             workers[i] = worker;
-            stakeToken.mint(address(worker), WORKER_INITIAL_BALANCE);
+            stakeToken.transfer(address(worker), WORKER_INITIAL_BALANCE);
             worker.approveStakeManager(type(uint256).max);
         }
 
