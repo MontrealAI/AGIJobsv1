@@ -5,6 +5,7 @@ const ValidationModule = artifacts.require('ValidationModule');
 const DisputeModule = artifacts.require('DisputeModule');
 const ReputationEngine = artifacts.require('ReputationEngine');
 const FeePool = artifacts.require('FeePool');
+const CertificateNFT = artifacts.require('CertificateNFT');
 
 const params = require('../config/params.json');
 
@@ -53,6 +54,7 @@ module.exports = async function (callback) {
     const dispute = await DisputeModule.deployed();
     const reputation = await ReputationEngine.deployed();
     const feePool = await FeePool.deployed();
+    const certificate = await CertificateNFT.deployed();
 
     [
       ['identity', modules.identity, identity.address],
@@ -73,6 +75,7 @@ module.exports = async function (callback) {
         ['dispute.owner', dispute.owner()],
         ['reputation.owner', reputation.owner()],
         ['feePool.owner', feePool.owner()],
+        ['certificate.owner', certificate.owner()],
       ].map(async ([label, valuePromise]) => {
         const value = await valuePromise;
         ensureOwner(value, label, ownerCheckTarget);
