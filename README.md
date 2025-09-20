@@ -26,9 +26,17 @@ Edit configuration files under `config/` to match the deployment environment:
 
 - `config/agialpha.dev.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters and burn address. The development
   variant ships with a `mock` stake token marker that triggers a mock deployment during migrations.
-- `config/ens.dev.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (run `npm run namehash -- <variant>` to
-  refresh namehashes; the command defaults to `mainnet`).
+- `config/ens.dev.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (refresh namehashes with either
+  `npm run namehash -- <variant>` or `node scripts/compute-namehash.js <path-to-config>`; the variant command defaults to
+  `mainnet`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
+
+### Manual verification: ENS namehash script
+
+1. Edit `config/ens.dev.json` to set distinct `agentRoot` / `clubRoot` placeholder values.
+2. Run `node scripts/compute-namehash.js config/ens.dev.json` to update hashes in-place for the explicit file path.
+3. Restore the original names and run `npm run namehash -- dev` (or omit the argument to target `mainnet`) to confirm the
+   variant-based workflow still rewrites the resolved config file.
 
 ## Mainnet deployment profile
 

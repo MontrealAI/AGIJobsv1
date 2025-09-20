@@ -1,25 +1,56 @@
 const fs = require('fs');
+const path = require('path');
 const { hash: computeHash } = require('eth-ens-namehash');
 
 const { configPath, readConfig, resolveVariant } = require('./config-loader');
 
-function extractNetwork(argv) {
-  const networkFlagIndex = argv.findIndex((arg) => arg === '--network');
-  if (networkFlagIndex !== -1 && argv[networkFlagIndex + 1]) {
-    return argv[networkFlagIndex + 1];
+function parseArguments(argv) {
+  const args = argv.slice(2);
+  let network;
+  let explicitPath;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+
+    if (arg === '--network') {
+      if (i + 1 < args.length) {
+        network = args[i + 1];
+        i += 1;
+      }
+      continue;
+    }
+
+    if (arg.startsWith('--')) {
+      continue;
+    }
+
+    if (!explicitPath && (arg.includes('/') || arg.includes('\\') || arg.endsWith('.json'))) {
+      explicitPath = arg;
+      continue;
+    }
+
+    if (!network) {
+      network = arg;
+    }
   }
 
-  const positional = argv[2];
-  if (positional && !positional.startsWith('--')) {
-    return positional;
-  }
-
-  return undefined;
+  return { network, explicitPath };
 }
 
-const variant = resolveVariant(extractNetwork(process.argv));
-const targetPath = configPath('ens', variant);
-const config = readConfig('ens', variant);
+const { network, explicitPath } = parseArguments(process.argv);
+
+let targetPath;
+let config;
+
+if (explicitPath) {
+  targetPath = path.resolve(process.cwd(), explicitPath);
+  const raw = fs.readFileSync(targetPath, 'utf8');
+  config = JSON.parse(raw);
+} else {
+  const variant = resolveVariant(network);
+  targetPath = configPath('ens', variant);
+  config = readConfig('ens', variant);
+}
 
 const assignHash = (rootKey, hashKey) => {
   const value = config[rootKey];
@@ -34,4 +65,4 @@ assignHash('agentRoot', 'agentRootHash');
 assignHash('clubRoot', 'clubRootHash');
 
 fs.writeFileSync(targetPath, `${JSON.stringify(config, null, 2)}\n`);
-console.log(`Updated ENS namehashes for ${variant}`);
+console.log(`Updated ENS namehashes in ${targetPath}`);
