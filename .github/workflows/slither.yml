@@ -16,9 +16,9 @@ jobs:
           node-version: '20'
       - run: npm ci
       - name: Run Slither
-        run: >-
+        run: |
           docker run --rm \
-          -v ${{ github.workspace }}:/src \
-          -w /src \
-          trailofbits/slither:latest \
-          sh -c "python3 -m pip install --no-cache-dir 'slither-analyzer>=0.10.4' && slither . --fail-medium"
+            -v ${{ github.workspace }}:/src \
+            -w /src \
+            trailofbits/slither:latest \
+            sh -c "python3 -m pip install --no-cache-dir 'slither-analyzer>=0.10.4' && slither . --fail-medium"
