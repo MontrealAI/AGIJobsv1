@@ -8,6 +8,12 @@ const HOST = process.env.HARDHAT_HOST || '127.0.0.1';
 const PORT = Number(process.env.HARDHAT_PORT || 8545);
 const HARDHAT_READY_TIMEOUT = 60_000;
 
+// Networks that represent live deployments where we must never run migrations
+// automatically. When `NETWORK` resolves to one of these names the script will
+// skip the Hardhat replay entirely and only export addresses/ABIs from the
+// existing Truffle artifacts.
+const LIVE_NETWORKS = new Set(['mainnet', 'sepolia']);
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -196,14 +202,22 @@ async function startHardhatNode() {
 
 async function run() {
   const network = process.env.NETWORK || 'development';
+  const shouldReplayMigrations = !LIVE_NETWORKS.has(network);
   let hardhat;
 
   try {
-    hardhat = await startHardhatNode();
+    if (shouldReplayMigrations) {
+      hardhat = await startHardhatNode();
 
-    await runCommand('npx', ['truffle', 'migrate', '--reset', '--network', network], {
-      env: { ...process.env, TRUFFLE_TEST: 'true' },
-    });
+      await runCommand('npx', ['truffle', 'migrate', '--reset', '--network', network], {
+        env: { ...process.env, TRUFFLE_TEST: 'true' },
+      });
+    } else {
+      console.log(
+        `Skipping 'truffle migrate --reset' for live network '${network}'. ` +
+          'Existing artifacts will be used for export.'
+      );
+    }
 
     await runCommand('npx', ['truffle', 'exec', 'scripts/export-addresses.js', '--network', network], {
       env: { ...process.env, NETWORK: network },

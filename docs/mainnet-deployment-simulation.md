@@ -24,9 +24,12 @@ pre-flight checklist before running against the live network.
    addresses and governance constants align with production expectations.【F:migrations/2_deploy_protocol.js†L1-L200】【F:migrations/3_wire_protocol.js†L1-L200】【F:migrations/4_configure_ens_and_params.js†L1-L200】【F:migrations/5_transfer_ownership.js†L1-L200】
 3. **Prepare artifact export.** After a successful live migration, run
    `npm run export:artifacts` so `artifacts-public/addresses/mainnet.json` and
-   `artifacts-public/abis` reflect the fresh deployment. The simulation kept the
-   existing artifacts untouched; compare the new addresses against the current
-   baseline before committing.【F:artifacts-public/addresses/mainnet.json†L1-L9】【F:scripts/export-artifacts-runner.js†L1-L77】
+   `artifacts-public/abis` reflect the fresh deployment. The script now detects
+   live networks such as `mainnet`/`sepolia` and skips the Hardhat replay path,
+   so it will only export from the existing Truffle artifacts instead of
+   redeploying contracts. The simulation kept the existing artifacts untouched;
+   compare the new addresses against the current baseline before
+   committing.【F:artifacts-public/addresses/mainnet.json†L1-L9】【F:scripts/export-artifacts-runner.js†L1-L214】
 4. **Queue Etherscan verification.** Plan to execute
    `truffle run verify IdentityRegistry StakeManager FeePool ValidationModule DisputeModule ReputationEngine CertificateNFT JobRegistry --network mainnet`.
    If the plugin cannot infer constructor parameters, pull them from the
@@ -89,7 +92,7 @@ npm run export:artifacts
 
 This regenerates the JSON artifacts under `artifacts-public/addresses` and `artifacts-public/abis`. Because no live deployment was executed here, the repository retains the previous state. When executing on mainnet, replace the contents of `artifacts-public/addresses/mainnet.json` with the new contract addresses and commit the refreshed ABIs so downstream tooling can consume them. The existing file reflects the last known deployment and serves as a baseline for comparison during the real rollout.【F:artifacts-public/addresses/mainnet.json†L1-L9】
 
-The export runner (`scripts/export-artifacts-runner.js`) spins up a local Hardhat node, replays migrations against it, then writes sanitized artifacts. Ensure the `NETWORK` environment variable is set to `mainnet` before invoking the script in production so the addresses file is stamped under the correct key.【F:scripts/export-artifacts-runner.js†L1-L77】
+The export runner (`scripts/export-artifacts-runner.js`) still spins up a local Hardhat node and replays migrations when pointed at development-style networks, but when `NETWORK=mainnet` (or another live target) it skips the replay entirely and simply exports addresses/ABIs from the existing Truffle build artifacts. Ensure the `NETWORK` environment variable is set to `mainnet` before invoking the script in production so the addresses file is stamped under the correct key without redeploying live contracts.【F:scripts/export-artifacts-runner.js†L1-L214】
 
 ## 4. Etherscan verification
 
