@@ -219,9 +219,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         _requireModulesConfigured();
         _requireThresholdsConfigured();
         Job storage job = jobs[jobId];
-        if (job.state != JobState.Revealed && job.state != JobState.Disputed) {
-            revert InvalidState(JobState.Revealed, job.state);
-        }
+        _requireState(job.state, JobState.Revealed);
 
         uint256 feeAmount = (job.stakeAmount * thresholds.feeBps) / BPS_DENOMINATOR;
         if (feeAmount > job.stakeAmount) revert FeeBounds();

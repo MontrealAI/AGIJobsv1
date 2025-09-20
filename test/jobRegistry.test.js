@@ -823,6 +823,33 @@ contract('JobRegistry', (accounts) => {
     );
   });
 
+  it('requires disputed jobs to resolve through resolveDispute', async function () {
+    const stakeAmount = web3.utils.toBN('300');
+    await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const { logs } = await this.jobRegistry.createJob(stakeAmount, { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+    await this.jobRegistry.raiseDispute(jobId, { from: client });
+
+    await expectCustomError(
+      this.jobRegistry.finalizeJob(jobId, true, { from: deployer }),
+      `JobRegistry.InvalidState(${JOB_STATES.Revealed}, ${JOB_STATES.Disputed})`
+    );
+
+    const resolution = await this.jobRegistry.resolveDispute(jobId, false, 0, 0, { from: deployer });
+    expectEvent(resolution, 'DisputeResolved', {
+      jobId,
+      slashed: false,
+      slashAmount: web3.utils.toBN(0),
+    });
+
+    const job = await this.jobRegistry.jobs(jobId);
+    assert.strictEqual(job.state.toNumber(), JOB_STATES.Finalized);
+  });
+
   it('resolves disputes in both slash and release modes', async function () {
     await this.jobRegistry.setTimings(2, 2, 10, { from: deployer });
     await this.jobRegistry.setThresholds(6000, 1, 11, 250, 5000, { from: deployer });
