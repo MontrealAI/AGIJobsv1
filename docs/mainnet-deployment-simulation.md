@@ -96,6 +96,20 @@ IdentityRegistry.deployed().then(async (r) => console.log(await r.ens()));
 
 Capture transaction hashes, block numbers, and console output in this log once the live migration is complete to satisfy governance reporting requirements.
 
+## Appendix: 20 Sep 2025 simulation run
+
+The latest dry-run was executed entirely against a local Hardhat devnet. No real credentials were loaded; populate a private `.env` with the live mnemonic, RPC endpoints, Safe, timelock, and Etherscan key before attempting mainnet work.【F:truffle-config.js†L1-L32】
+
+### Artifact export dress rehearsal
+
+`NETWORK=development npm run export:artifacts` bootstraps a Hardhat node, replays the migrations, and refreshes the public artifacts. The command completed successfully, regenerating `artifacts-public/addresses/development.json` and the ABI manifest for the simulated network.【a8d82a†L1-L40】【8d3196†L1-L120】【4328c6†L1-L3】
+
+### Wiring verification loop
+
+Running the verifier without an active JSON-RPC endpoint reproduced the expected connection error, which mirrors what would happen on mainnet if the provider URL or credentials are missing.【1c2644†L1-L4】 Spinning up `npx hardhat node --hostname 127.0.0.1 --port 8545` allowed the migrations to replay locally and provided a target for `scripts/verify-wiring.js` once a placeholder `GOV_SAFE` was supplied.【31b168†L1-L4】【d23666†L1-L89】【cf173e†L1-L24】【8e4b7d†L1-L3】
+
+Use the same sequence with the real provider to sanity-check the wiring immediately after the mainnet deployment. Replace the placeholder Safe address with the governance Safe from production secrets to enforce the final ownership checks.
+
 ## 6. Next steps for production
 
 1. Run the sequence above against mainnet with live credentials.
