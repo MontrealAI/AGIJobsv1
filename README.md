@@ -63,7 +63,7 @@ npm run verify:sepolia
 npm run export:artifacts
 ```
 
-`npm run export:artifacts` performs a deterministic local migration, exports network-specific addresses, and generates sanitized ABI bundles under `artifacts-public/`. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
+`npm run export:artifacts` replays migrations against a local Hardhat node when `NETWORK` points at a development sandbox, but for live targets such as `mainnet` or `sepolia` it skips redeployments and only exports addresses/ABIs from the existing Truffle artifacts. Use `npm run export:abis` when you only need to refresh the ABI manifest after a compile.
 
 ## Verify (Mainnet)
 
