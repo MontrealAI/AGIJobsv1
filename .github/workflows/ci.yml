@@ -24,6 +24,14 @@ jobs:
       - run: npm run lint:sol
       - run: npm run test
       - run: npm run coverage
+      - run: npm run gas | tee gas-report.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gas-report
+          path: |
+            gas-report.txt
+            gasReporterOutput.json
+          if-no-files-found: warn
       - run: npm run export:artifacts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
