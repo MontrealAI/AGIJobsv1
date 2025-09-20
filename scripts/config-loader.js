@@ -7,12 +7,25 @@ function resolveVariant(networkOrVariant = DEFAULT_VARIANT) {
   if (!networkOrVariant) {
     return DEFAULT_VARIANT;
   }
-  if (networkOrVariant === 'development' || networkOrVariant === 'dev') {
-    return 'dev';
-  }
-  if (networkOrVariant === 'mainnet') {
+
+  const normalized = networkOrVariant.toLowerCase();
+
+  if (normalized === 'mainnet') {
     return 'mainnet';
   }
+
+  const devVariants = new Set([
+    'dev',
+    'development',
+    'localhost',
+    'hardhat',
+    'sepolia'
+  ]);
+
+  if (devVariants.has(normalized)) {
+    return 'dev';
+  }
+
   return DEFAULT_VARIANT;
 }
 
