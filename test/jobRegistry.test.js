@@ -40,6 +40,7 @@ const CUSTOM_ERROR_TYPES = {
   InvalidState: ['uint8', 'uint8'],
   WindowExpired: ['string'],
   FeeBounds: [],
+  SlashAmountWithoutSlashing: [],
 };
 
 const JOB_STATES = {
@@ -427,6 +428,11 @@ contract('JobRegistry', (accounts) => {
     await expectRevert(
       this.jobRegistry.resolveDispute(jobId, true, web3.utils.toBN('600'), 0, { from: deployer }),
       'JobRegistry: slash bounds'
+    );
+
+    await expectCustomError(
+      this.jobRegistry.resolveDispute(jobId, false, 1, 0, { from: deployer }),
+      'JobRegistry.SlashAmountWithoutSlashing()'
     );
 
     const resolveTx = await this.jobRegistry.resolveDispute(jobId, false, 0, 3, {

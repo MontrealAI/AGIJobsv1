@@ -73,6 +73,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     error FeeBounds();
     error NotConfigured(bytes32 component);
     error UnauthorizedDisputeRaiser(uint256 jobId, address caller);
+    error SlashAmountWithoutSlashing();
 
     bytes32 private constant MODULES_KEY = "modules";
     bytes32 private constant TIMINGS_KEY = "timings";
@@ -286,6 +287,9 @@ contract JobRegistry is Ownable, ReentrancyGuard {
                 feePool.recordFee(slashAmount);
             }
         } else {
+            if (slashAmount > 0) {
+                revert SlashAmountWithoutSlashing();
+            }
             staking.releaseStake(job.worker, job.stakeAmount);
         }
 
