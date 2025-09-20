@@ -1,8 +1,12 @@
 const { spawn } = require('child_process');
 const http = require('http');
+const net = require('net');
 
-const HOST = '127.0.0.1';
-const PORT = 8545;
+const HARDHAT_CLI = require.resolve('hardhat/internal/cli/cli');
+
+const HOST = process.env.HARDHAT_HOST || '127.0.0.1';
+const PORT = Number(process.env.HARDHAT_PORT || 8545);
+const HARDHAT_READY_TIMEOUT = 60_000;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,7 +49,7 @@ function jsonRpcRequest({ host, port, body, timeout }) {
   });
 }
 
-async function waitForHardhatNode({ host = HOST, port = PORT, timeout = 60000, interval = 500 } = {}) {
+async function waitForHardhatNode({ host = HOST, port = PORT, timeout = HARDHAT_READY_TIMEOUT, interval = 500 } = {}) {
   const payload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'net_version', params: [] });
   const start = Date.now();
 
@@ -63,52 +67,88 @@ async function waitForHardhatNode({ host = HOST, port = PORT, timeout = 60000, i
   }
 }
 
+async function ensurePortAvailable({ host = HOST, port = PORT } = {}) {
+  await new Promise((resolve, reject) => {
+    const tester = net.createServer();
+    tester.once('error', (error) => {
+      tester.close(() => {
+        if (error.code === 'EADDRINUSE') {
+          reject(new Error(`Port ${port} on ${host} is already in use. Stop the process listening on it or set HARDHAT_PORT.`));
+        } else {
+          reject(error);
+        }
+      });
+    });
+    tester.once('listening', () => {
+      tester.close(resolve);
+    });
+    tester.listen(port, host);
+  });
+}
+
+async function stopProcess(proc, { signal = 'SIGINT', forceSignal = 'SIGKILL', timeout = 5000 } = {}) {
+  if (!proc || proc.killed || proc.exitCode !== null) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    let settled = false;
+
+    const cleanup = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        try {
+          proc.kill(forceSignal);
+        } catch (_) {
+          // ignore
+        }
+      }
+    }, timeout);
+
+    proc.once('exit', () => {
+      clearTimeout(timer);
+      cleanup();
+    });
+
+    try {
+      proc.kill(signal);
+    } catch (error) {
+      if (error.code === 'ESRCH') {
+        clearTimeout(timer);
+        cleanup();
+        return;
+      }
+      try {
+        proc.kill(forceSignal);
+      } catch (_) {
+        // ignore
+      }
+    }
+  });
+}
+
 async function run() {
+  await ensurePortAvailable();
+
   const hardhatNode = spawn(
-    'npx',
-    ['hardhat', 'node', '--hostname', HOST, '--port', String(PORT)],
+    process.execPath,
+    [HARDHAT_CLI, 'node', '--hostname', HOST, '--port', String(PORT)],
     { stdio: ['ignore', 'inherit', 'inherit'] }
   );
 
-  let truffle;
-  let exiting = false;
-
-  const cleanup = () => {
-    if (truffle && truffle.exitCode === null && !truffle.killed) {
-      truffle.kill('SIGINT');
-    }
-    if (hardhatNode.exitCode === null && !hardhatNode.killed) {
-      hardhatNode.kill('SIGINT');
-    }
-  };
-
-  const terminate = (code) => {
-    if (exiting) {
-      return;
-    }
-    exiting = true;
-    cleanup();
-    process.exit(code);
-  };
-
-  const handleSignal = (signal) => {
-    console.warn(`Received ${signal}. Stopping Hardhat node and tests...`);
-    terminate(1);
-  };
-
-  process.on('SIGINT', handleSignal);
-  process.on('SIGTERM', handleSignal);
-  process.on('exit', cleanup);
-
   await new Promise((resolve, reject) => {
     const handleExit = (code, signal) => {
-      if (!exiting) {
-        reject(
-          new Error(
-            `Hardhat node exited before it became ready (code: ${code ?? 'null'}, signal: ${signal ?? 'null'})`
-          )
-        );
-      }
+      reject(
+        new Error(
+          `Hardhat node exited before it became ready (code: ${code ?? 'null'}${signal ? `, signal ${signal}` : ''})`
+        )
+      );
     };
 
     const handleError = (error) => {
@@ -131,29 +171,70 @@ async function run() {
       });
   });
 
-  truffle = spawn('npx', ['truffle', 'test'], { stdio: 'inherit' });
+  let truffle;
+  let shuttingDown = false;
 
-  truffle.on('error', (error) => {
-    console.error(`Failed to run Truffle tests: ${error.message}`);
-    terminate(1);
-  });
+  const terminate = async (code) => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    try {
+      await stopProcess(truffle);
+    } finally {
+      await stopProcess(hardhatNode);
+    }
+    process.exit(code);
+  };
+
+  const handleSignal = (signal) => {
+    console.warn(`Received ${signal}. Stopping Hardhat node and tests...`);
+    terminate(1).catch((error) => {
+      console.error(error.message || error);
+      process.exit(1);
+    });
+  };
+
+  process.once('SIGINT', handleSignal);
+  process.once('SIGTERM', handleSignal);
 
   hardhatNode.on('exit', (code, signal) => {
-    if (!exiting && (code ?? 0) !== 0) {
+    if (!shuttingDown && (code ?? 0) !== 0) {
       console.error(
         `Hardhat node exited unexpectedly with code ${code ?? 'null'}${signal ? ` (signal ${signal})` : ''}`
       );
     }
   });
 
-  truffle.on('exit', (code, signal) => {
-    if (signal) {
-      console.error(`Truffle tests terminated with signal ${signal}`);
-      terminate(1);
-      return;
-    }
-    terminate(code ?? 1);
-  });
+  try {
+    truffle = spawn('npx', ['truffle', 'test'], { stdio: 'inherit' });
+
+    truffle.on('error', (error) => {
+      console.error(`Failed to run Truffle tests: ${error.message}`);
+      terminate(1).catch((terminateError) => {
+        console.error(terminateError.message || terminateError);
+        process.exit(1);
+      });
+    });
+
+    truffle.on('exit', (code, signal) => {
+      if (signal) {
+        console.error(`Truffle tests terminated with signal ${signal}`);
+        terminate(1).catch((terminateError) => {
+          console.error(terminateError.message || terminateError);
+          process.exit(1);
+        });
+        return;
+      }
+      terminate(code ?? 1).catch((terminateError) => {
+        console.error(terminateError.message || terminateError);
+        process.exit(1);
+      });
+    });
+  } catch (error) {
+    await stopProcess(hardhatNode);
+    throw error;
+  }
 }
 
 run().catch((error) => {
