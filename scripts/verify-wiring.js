@@ -19,6 +19,69 @@ function extractNetwork(argv) {
   return undefined;
 }
 
+async function callOptionalTokenMethod(address, selector) {
+  try {
+    const result = await web3.eth.call({ to: address, data: selector });
+    if (!result || result === '0x') {
+      return null;
+    }
+    return result;
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error).toLowerCase();
+    if (
+      message.includes('execution reverted') ||
+      message.includes('revert') ||
+      message.includes('invalid opcode') ||
+      message.includes('method not found') ||
+      (typeof error?.code === 'number' && (error.code === -32601 || error.code === 3))
+    ) {
+      console.warn(`Warning: token at ${address} did not respond to selector ${selector}; skipping.`);
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function fetchTokenMetadata(address) {
+  const abi = web3.eth.abi;
+
+  const [decimalsData, symbolData, nameData] = await Promise.all([
+    callOptionalTokenMethod(address, '0x313ce567'), // decimals()
+    callOptionalTokenMethod(address, '0x95d89b41'), // symbol()
+    callOptionalTokenMethod(address, '0x06fdde03'), // name()
+  ]);
+
+  let decimals = null;
+  if (decimalsData) {
+    try {
+      decimals = Number(abi.decodeParameter('uint8', decimalsData));
+    } catch (decodeError) {
+      console.warn(`Warning: failed to decode decimals() for token ${address}: ${decodeError}`);
+    }
+  }
+
+  let symbol = null;
+  if (symbolData) {
+    try {
+      symbol = abi.decodeParameter('string', symbolData);
+    } catch (decodeError) {
+      console.warn(`Warning: failed to decode symbol() for token ${address}: ${decodeError}`);
+    }
+  }
+
+  let name = null;
+  if (nameData) {
+    try {
+      name = abi.decodeParameter('string', nameData);
+    } catch (decodeError) {
+      console.warn(`Warning: failed to decode name() for token ${address}: ${decodeError}`);
+    }
+  }
+
+  return { decimals, symbol, name };
+}
+
 module.exports = async function (callback) {
   try {
     const { GOV_SAFE, TIMELOCK_ADDR } = process.env;
@@ -111,6 +174,26 @@ module.exports = async function (callback) {
     const stakeDecimals = Number(await staking.stakeTokenDecimals());
     const feeToken = await feePool.feeToken();
     const feeBurnAddress = await feePool.burnAddress();
+
+    const tokenMetadata = await fetchTokenMetadata(stakeToken);
+    const descriptor = [];
+    if (tokenMetadata.name) {
+      descriptor.push(tokenMetadata.name);
+    }
+    if (tokenMetadata.symbol) {
+      descriptor.push(`(${tokenMetadata.symbol})`);
+    }
+    if (descriptor.length > 0) {
+      console.log(`Stake token metadata: ${descriptor.join(' ')}`);
+    } else {
+      console.log('Stake token metadata: (symbol/name unavailable)');
+    }
+
+    if (tokenMetadata.decimals !== null && tokenMetadata.decimals !== stakeDecimals) {
+      throw new Error(
+        `Stake token decimals mismatch: StakeManager stored ${stakeDecimals} but token at ${stakeToken} reports ${tokenMetadata.decimals}`
+      );
+    }
 
     if (agiCfg) {
       if (agiCfg.token && typeof agiCfg.token === 'string' && agiCfg.token !== 'mock') {
