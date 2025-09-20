@@ -100,6 +100,16 @@ contract StakeManager is Ownable, ReentrancyGuard {
         emit Released(account, amount);
     }
 
+    /// @notice Emergency release of locked stake. Allows governance to recover funds if the registry is compromised.
+    /// @param account Worker whose locked stake will be released.
+    /// @param amount Quantity of tokens to unlock from the worker's locked balance.
+    function emergencyRelease(address account, uint256 amount) external onlyOwner {
+        require(amount > 0, "StakeManager: amount");
+        require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
+        lockedAmounts[account] -= amount;
+        emit Released(account, amount);
+    }
+
     /// @notice Settles a job by slashing and/or releasing locked stake.
     /// @param account Worker whose stake is being adjusted.
     /// @param releaseAmount Portion of stake released back to the available balance.
