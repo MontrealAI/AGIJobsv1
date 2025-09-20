@@ -11,6 +11,7 @@ npm ci
 npm run build
 npm run test
 npm run coverage
+npm run config:validate
 ```
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
@@ -30,6 +31,8 @@ Edit configuration files under `config/` to match the deployment environment:
   `npm run namehash -- <variant>` or `node scripts/compute-namehash.js <path-to-config>`; the variant command defaults to
   `mainnet`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
+- Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
+  guardrails before broadcasting migrations.
 
 ### Manual verification: ENS namehash script
 

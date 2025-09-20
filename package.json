@@ -24,6 +24,7 @@
     "namehash": "node scripts/compute-namehash.js",
     "namehash:dev": "node scripts/compute-namehash.js dev",
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
+    "config:validate": "node scripts/validate-config.js",
     "prepare": "husky install",
     "hardhat:test": "node scripts/run-tests.js"
   },
