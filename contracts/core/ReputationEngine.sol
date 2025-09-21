@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Ownable} from "../libs/Ownable.sol";
+import {Pausable} from "../libs/Pausable.sol";
 
 /// @title ReputationEngine
 /// @notice Tracks a simple reputation score per worker.
-contract ReputationEngine is Ownable {
+contract ReputationEngine is Pausable {
     event ReputationUpdated(address indexed worker, int256 delta, int256 newScore);
     event JobRegistryUpdated(address indexed jobRegistry);
 
@@ -29,7 +29,7 @@ contract ReputationEngine is Ownable {
     /// @notice Applies a signed delta to a worker's reputation score.
     /// @param worker Address whose reputation is being adjusted.
     /// @param delta Signed amount to add (or subtract) from the worker's score.
-    function adjustReputation(address worker, int256 delta) external onlyRegistry {
+    function adjustReputation(address worker, int256 delta) external onlyRegistry whenNotPaused {
         reputation[worker] += delta;
         emit ReputationUpdated(worker, delta, reputation[worker]);
     }

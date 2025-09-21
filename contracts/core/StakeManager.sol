@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Ownable} from "../libs/Ownable.sol";
+import {Pausable} from "../libs/Pausable.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 import {IERC20} from "../libs/IERC20.sol";
 import {SafeERC20} from "../libs/SafeERC20.sol";
 
 /// @title StakeManager
 /// @notice Tracks stake balances, locks amounts for jobs, and records slashing events.
-contract StakeManager is Ownable, ReentrancyGuard {
+contract StakeManager is Pausable, ReentrancyGuard {
     event Deposited(address indexed account, uint256 amount);
     event Withdrawn(address indexed account, uint256 amount);
     event Locked(address indexed account, uint256 amount);
@@ -61,7 +61,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
 
     /// @notice Adds stake on behalf of the caller.
     /// @param amount Quantity of tokens to deposit as stake.
-    function deposit(uint256 amount) external nonReentrant {
+    function deposit(uint256 amount) external nonReentrant whenNotPaused {
         require(amount > 0, "StakeManager: amount");
         IERC20 token = stakeToken;
         require(token.allowance(msg.sender, address(this)) >= amount, "StakeManager: allowance");
@@ -84,7 +84,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
     /// @notice Locks stake for a job. Only callable by the configured job registry.
     /// @param account Worker whose stake will be locked.
     /// @param amount Quantity of tokens to lock for the job lifecycle.
-    function lockStake(address account, uint256 amount) external onlyJobRegistry {
+    function lockStake(address account, uint256 amount) external onlyJobRegistry whenNotPaused {
         require(amount > 0, "StakeManager: amount");
         require(availableStake(account) >= amount, "StakeManager: insufficient");
         lockedAmounts[account] += amount;
@@ -94,7 +94,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
     /// @notice Releases locked stake back to the available balance.
     /// @param account Worker whose locked stake will be released.
     /// @param amount Quantity of tokens to move back to the unlocked balance.
-    function releaseStake(address account, uint256 amount) external onlyJobRegistry {
+    function releaseStake(address account, uint256 amount) external onlyJobRegistry whenNotPaused {
         require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
         lockedAmounts[account] -= amount;
         emit Released(account, amount);
@@ -118,6 +118,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
         external
         onlyJobRegistry
         nonReentrant
+        whenNotPaused
     {
         require(releaseAmount + slashAmount > 0, "StakeManager: nothing to settle");
         uint256 total = releaseAmount + slashAmount;
@@ -138,7 +139,7 @@ contract StakeManager is Ownable, ReentrancyGuard {
     /// @notice Slashes locked stake and forwards it to the fee recipient.
     /// @param account Worker whose locked stake is being slashed.
     /// @param amount Amount of stake to slash.
-    function slashStake(address account, uint256 amount) external onlyJobRegistry nonReentrant {
+    function slashStake(address account, uint256 amount) external onlyJobRegistry nonReentrant whenNotPaused {
         require(lockedAmounts[account] >= amount, "StakeManager: exceeds locked");
         address recipient = feeRecipient;
         require(recipient != address(0), "StakeManager: fee recipient");
