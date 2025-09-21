@@ -4,5 +4,8 @@
   "agentRoot": null,
   "clubRoot": null,
   "agentRootHash": null,
-  "clubRootHash": null
+  "clubRootHash": null,
+  "alphaClubRoot": null,
+  "alphaClubRootHash": null,
+  "alphaEnabled": false
 }

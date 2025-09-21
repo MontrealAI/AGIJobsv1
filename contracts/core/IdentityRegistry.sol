@@ -7,18 +7,26 @@ import {Ownable} from "../libs/Ownable.sol";
 /// @title IdentityRegistry
 /// @notice Maintains ENS related configuration and an emergency allow list.
 contract IdentityRegistry is Ownable {
-    event EnsConfigured(address indexed registry, address indexed wrapper, bytes32 agentRootHash, bytes32 clubRootHash);
+    event EnsConfigured(
+        address indexed registry,
+        address indexed wrapper,
+        bytes32 agentRootHash,
+        bytes32 clubRootHash,
+        bytes32 alphaClubRootHash,
+        bool alphaEnabled
+    );
     event EmergencyAccessUpdated(address indexed account, bool allowed);
 
     address public ensRegistry;
     address public ensNameWrapper;
     bytes32 public agentRootHash;
     bytes32 public clubRootHash;
+    bytes32 public alphaClubRootHash;
+    bool public alphaEnabled;
 
     mapping(address => bool) private _emergencyAllowList;
 
     string private constant _ENS_UNCONFIGURED = "IdentityRegistry: ENS";
-    string private constant _WRAPPER_UNCONFIGURED = "IdentityRegistry: ENS wrapper";
     string private constant _AGENT_ROOT_UNCONFIGURED = "IdentityRegistry: agent root";
     string private constant _CLUB_ROOT_UNCONFIGURED = "IdentityRegistry: club root";
 
@@ -27,19 +35,28 @@ contract IdentityRegistry is Ownable {
     /// @param wrapper Address of the ENS NameWrapper responsible for wrapped ownership.
     /// @param agentHash Node hash representing the authorized agent subdomain.
     /// @param clubHash Node hash representing the authorized club subdomain.
-    function configureMainnet(address registry, address wrapper, bytes32 agentHash, bytes32 clubHash)
-        external
-        onlyOwner
-    {
+    /// @param alphaClubHash Optional node hash for the alpha.club.agi.eth root.
+    /// @param alphaClubEnabled Boolean flag to allow alpha root based identities.
+    function configureEns(
+        address registry,
+        address wrapper,
+        bytes32 agentHash,
+        bytes32 clubHash,
+        bytes32 alphaClubHash,
+        bool alphaClubEnabled
+    ) external onlyOwner {
         require(registry != address(0), "IdentityRegistry: registry");
-        require(wrapper != address(0), "IdentityRegistry: wrapper");
         require(agentHash != bytes32(0), "IdentityRegistry: agent hash");
         require(clubHash != bytes32(0), "IdentityRegistry: club hash");
+
         ensRegistry = registry;
         ensNameWrapper = wrapper;
         agentRootHash = agentHash;
         clubRootHash = clubHash;
-        emit EnsConfigured(registry, wrapper, agentHash, clubHash);
+        alphaClubRootHash = alphaClubHash;
+        alphaEnabled = alphaClubEnabled;
+
+        emit EnsConfigured(registry, wrapper, agentHash, clubHash, alphaClubHash, alphaClubEnabled);
     }
 
     /// @notice Adds or removes an address from the emergency allow list.
@@ -154,6 +171,5 @@ contract IdentityRegistry is Ownable {
 
     function _ensureEnsConfigured() private view {
         require(ensRegistry != address(0), _ENS_UNCONFIGURED);
-        require(ensNameWrapper != address(0), _WRAPPER_UNCONFIGURED);
     }
 }
