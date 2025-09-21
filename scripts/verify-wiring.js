@@ -57,6 +57,8 @@ const MAINNET_EXPECTATIONS = Object.freeze({
   agentRootHash: '0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d',
   clubRoot: 'club.agi.eth',
   clubRootHash: '0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16',
+  alphaClubRoot: 'alpha.club.agi.eth',
+  alphaClubRootHash: '0x6487f659ec6f3fbd424b18b685728450d2559e4d68768393f9c689b2b6e5405e',
 });
 
 function ensureEnsName(value, label) {
@@ -180,9 +182,14 @@ module.exports = async function (callback) {
 
     let normalizedAgentRootName = null;
     let normalizedClubRootName = null;
+    let normalizedAlphaRootName = null;
     if (hasEnsConfig) {
       normalizedAgentRootName = ensureEnsName(ensCfg.agentRoot, 'config.ens.agentRoot');
       normalizedClubRootName = ensureEnsName(ensCfg.clubRoot, 'config.ens.clubRoot');
+      normalizedAlphaRootName = ensureEnsName(
+        ensCfg.alphaClubRoot,
+        'config.ens.alphaClubRoot'
+      );
     }
 
     const jobRegistry = await JobRegistry.deployed();
@@ -276,6 +283,26 @@ module.exports = async function (callback) {
         throw new Error('config/ens.mainnet.json must define the ENS NameWrapper address');
       }
       expectEq(wrapperAddress, MAINNET_EXPECTATIONS.nameWrapper, 'config.ens.nameWrapper (mainnet)');
+
+      if (normalizedAlphaRootName) {
+        if (normalizedAlphaRootName !== MAINNET_EXPECTATIONS.alphaClubRoot) {
+          throw new Error(
+            `config.ens.alphaClubRoot must equal ${MAINNET_EXPECTATIONS.alphaClubRoot} on mainnet but was ${ensCfg.alphaClubRoot}`
+          );
+        }
+      }
+
+      if (ensCfg.alphaClubRootHash) {
+        expectEq(
+          ensCfg.alphaClubRootHash,
+          MAINNET_EXPECTATIONS.alphaClubRootHash,
+          'config.ens.alphaClubRootHash (mainnet)'
+        );
+      }
+
+      if (ensCfg.alphaEnabled && !normalizedAlphaRootName) {
+        throw new Error('config.ens.alphaClubRoot must be provided when alphaEnabled is true on mainnet');
+      }
     }
 
     if (expectedOwner) {
@@ -412,9 +439,12 @@ module.exports = async function (callback) {
       const onChainRegistry = await identity.ensRegistry();
       const onChainAgentHash = await identity.agentRootHash();
       const onChainClubHash = await identity.clubRootHash();
+      const onChainAlphaHash = await identity.alphaClubRootHash();
+      const onChainAlphaEnabled = await identity.alphaEnabled();
 
       const configuredAgentHash = typeof ensCfg.agentRootHash === 'string' ? ensCfg.agentRootHash : null;
       const configuredClubHash = typeof ensCfg.clubRootHash === 'string' ? ensCfg.clubRootHash : null;
+      const configuredAlphaHash = typeof ensCfg.alphaClubRootHash === 'string' ? ensCfg.alphaClubRootHash : null;
 
       let agentRootHashForChecks = configuredAgentHash;
       if (normalizedAgentRootName) {
@@ -454,6 +484,27 @@ module.exports = async function (callback) {
         throw new Error('config.ens.clubRoot must be specified when config.ens.clubRootHash is set');
       }
 
+      let alphaRootHashForChecks = configuredAlphaHash;
+      if (normalizedAlphaRootName) {
+        if (!configuredAlphaHash) {
+          throw new Error(
+            'config.ens.alphaClubRootHash must be set when config.ens.alphaClubRoot is provided'
+          );
+        }
+        if (configuredAlphaHash.toLowerCase() === ZERO_NAMEHASH) {
+          throw new Error('config.ens.alphaClubRootHash must not be the zero namehash');
+        }
+        const derivedAlphaHash = computeNamehash(normalizedAlphaRootName);
+        expectEq(
+          configuredAlphaHash,
+          derivedAlphaHash,
+          'config.ens.alphaClubRootHash matches namehash(config.ens.alphaClubRoot)'
+        );
+        alphaRootHashForChecks = derivedAlphaHash;
+      } else if (configuredAlphaHash) {
+        throw new Error('config.ens.alphaClubRoot must be specified when config.ens.alphaClubRootHash is set');
+      }
+
       const hasConfiguredRoots = Boolean(agentRootHashForChecks && clubRootHashForChecks);
 
       if (ensCfg.registry && hasConfiguredRoots) {
@@ -468,6 +519,21 @@ module.exports = async function (callback) {
 
       if (clubRootHashForChecks) {
         expectEq(onChainClubHash, clubRootHashForChecks, 'identity.clubRootHash');
+      }
+
+      if (alphaRootHashForChecks) {
+        expectEq(onChainAlphaHash, alphaRootHashForChecks, 'identity.alphaClubRootHash');
+      } else if (onChainAlphaHash && onChainAlphaHash.toLowerCase() !== ZERO_NAMEHASH) {
+        throw new Error('identity.alphaClubRootHash must be zero when config.ens.alphaClubRoot is unset');
+      }
+
+      if (ensCfg.alphaEnabled !== undefined) {
+        const configuredAlphaEnabled = Boolean(ensCfg.alphaEnabled);
+        if (Boolean(onChainAlphaEnabled) !== configuredAlphaEnabled) {
+          throw new Error(
+            `identity.alphaEnabled mismatch: expected ${configuredAlphaEnabled} but found ${onChainAlphaEnabled}`
+          );
+        }
       }
 
       const wrapperAddress = normalizeString(ensCfg.nameWrapper);
@@ -489,6 +555,7 @@ module.exports = async function (callback) {
             const nodesToCheck = [
               ['agent root', agentRootHashForChecks, normalizedAgentRootName],
               ['club root', clubRootHashForChecks, normalizedClubRootName],
+              ['alpha root', alphaRootHashForChecks, normalizedAlphaRootName],
             ].filter(([, nodeHash]) => Boolean(nodeHash));
 
             await Promise.all(
