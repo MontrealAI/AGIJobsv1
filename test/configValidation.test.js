@@ -37,9 +37,12 @@ contract('Configuration validation', () => {
 
       const registrarMainnetPath = path.join(tmpDir, 'registrar.mainnet.json');
       const registrarMainnet = JSON.parse(fs.readFileSync(registrarMainnetPath, 'utf8'));
+      registrarMainnet.defaultToken = '0x0000000000000000000000000000000000000001';
       registrarMainnet.address = '0x0000000000000000000000000000000000000000';
       registrarMainnet.domains[0].labels[0].minPrice = '-1';
       registrarMainnet.domains[0].labels[0].label = '';
+      registrarMainnet.domains[0].labels[0].expectedToken =
+        '0x0000000000000000000000000000000000000002';
       fs.writeFileSync(registrarMainnetPath, JSON.stringify(registrarMainnet, null, 2));
 
       const { errors } = validateAllConfigs({ baseDir: tmpDir });
@@ -67,6 +70,14 @@ contract('Configuration validation', () => {
       assert.isTrue(
         errors.some((message) => message.includes('registrar.mainnet.json')),
         'should flag registrar misconfiguration'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('defaultToken must equal')),
+        'should require registrar default token to match agialpha token'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('labels.expectedToken must equal')),
+        'should require registrar label tokens to match agialpha token'
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
