@@ -149,3 +149,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Local verification artifacts
+gasReporterOutput.json
+gas-report.txt
+echidna-corpus/
+artifacts/echidna-long/

@@ -252,6 +252,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
                 uint256 currentDeposits = stakeManager.totalDeposits(previousJobWorker);
                 if (previousDeposits > currentDeposits) {
                     uint256 realizedSlash = previousDeposits - currentDeposits;
+                    expectedFees += realizedSlash;
                     if (realizedSlash > maxSlash) {
                         slashBoundsViolated = true;
                     }
@@ -323,6 +324,12 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     /// @return True when the recorded fees match the expected accumulator.
     function echidna_fee_accounting_consistent() external view returns (bool) {
         return feePool.totalFeesRecorded() == expectedFees;
+    }
+
+    /// @notice Ensures the fee pool holds the exact token balance that has been recorded.
+    /// @return True if the ERC20 balance matches the accounting accumulator.
+    function echidna_fee_pool_balance_matches_recorded() external view returns (bool) {
+        return stakeToken.balanceOf(address(feePool)) == feePool.totalFeesRecorded();
     }
 
     /// @notice Ensures dispute resolutions never slash more than the configured maximum.
