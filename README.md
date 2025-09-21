@@ -170,6 +170,17 @@ Deployments from CI require the following repository secrets so migrations can t
 
 All privileged ownership is transferred to a Safe and timelock during migrations. See `/audit/threat-model.md` for expectations and emergency guidance.
 
+### Emergency pause
+
+The following owner-controlled modules expose `pause()` / `unpause()` guards:
+
+- `StakeManager`
+- `JobRegistry`
+- `DisputeModule`
+- `ReputationEngine`
+
+Post-migration the governance Safe (or configured timelock) is the sole owner, so it is the only entity that can invoke these toggles. Pausing suspends new deposits, job lifecycle progression, and dispute hooks, but `StakeManager.withdraw` (worker-controlled) and `StakeManager.emergencyRelease` (governance-controlled) remain callable so stakers can exit while mitigations are prepared.
+
 ## Security
 
 Responsible disclosure guidelines live in `SECURITY.md`. CI gates cover linting, unit tests, coverage, Slither, and Echidna smoke testing.
