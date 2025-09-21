@@ -49,6 +49,9 @@ contract IdentityRegistry is Ownable {
         require(registry != address(0), "IdentityRegistry: registry");
         require(agentHash != bytes32(0), "IdentityRegistry: agent hash");
         require(clubHash != bytes32(0), "IdentityRegistry: club hash");
+        if (alphaClubEnabled) {
+            require(alphaClubHash != bytes32(0), "IdentityRegistry: alpha hash");
+        }
 
         ensRegistry = registry;
         ensNameWrapper = wrapper;
@@ -90,7 +93,8 @@ contract IdentityRegistry is Ownable {
     }
 
     /// @notice Computes the ENS node derived from the configured agent root and the provided labels.
-    /// @param labels Sequence of label hashes descending from the agent root (e.g. [`keccak256("alpha")`, `keccak256("member")`]).
+    /// @param labels Sequence of label hashes descending from the agent root (e.g.
+    /// [`keccak256("alpha")`, `keccak256("member")`]).
     /// @return node ENS node hash representing the derived subdomain.
     function resolveAgentNode(bytes32[] calldata labels) external view returns (bytes32 node) {
         _ensureEnsConfigured();
