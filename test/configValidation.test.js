@@ -48,6 +48,8 @@ contract('Configuration validation', () => {
         minPrice: '10',
         maxPrice: '5',
       });
+      registrarMainnet.domains[1].labels[0].minPrice = '4000000000000000000000';
+      registrarMainnet.domains[1].labels[0].maxPrice = '6000000000000000000000';
       fs.writeFileSync(registrarMainnetPath, JSON.stringify(registrarMainnet, null, 2));
 
       const { errors } = validateAllConfigs({ baseDir: tmpDir });
@@ -85,8 +87,14 @@ contract('Configuration validation', () => {
         'should require registrar label tokens to match agialpha token'
       );
       assert.isTrue(
-        errors.some((message) => message.includes('labels.maxPrice must be greater than or equal to minPrice')),
+        errors.some((message) =>
+          message.includes('labels.maxPrice must be greater than or equal to minPrice')
+        ),
         'should flag inverted registrar price bounds'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alpha label must set minPrice and maxPrice')),
+        'should enforce Alpha Club premium price floor'
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
