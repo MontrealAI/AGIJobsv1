@@ -21,6 +21,8 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 - Emergency allow list limited to explicitly set addresses in `IdentityRegistry`.
 - StakeManager exposes a governance-only emergency release path to unlock stuck worker stake without touching balances.
 - Protocol-wide pause capability halts new lifecycle invocations during incidents while preserving recovery flows through `StakeManager`.
+- Incident runbooks require governance to document the reason for any pause and reference the Safe transactions used so auditors
+  can correlate mitigations with on-chain events.
 - Unit tests cover lifecycle happy paths and dispute resolution bounds.
 - Static analysis (Solhint, Slither) and fuzzing (Echidna smoke) wired via CI.
 
