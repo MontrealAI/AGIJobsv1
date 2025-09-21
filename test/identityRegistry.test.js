@@ -142,13 +142,18 @@ contract('IdentityRegistry', (accounts) => {
       this.wrapper = await MockENSNameWrapper.new({ from: owner });
       this.agentRoot = namehash('agent.agi.eth');
       this.clubRoot = namehash('club.agi.eth');
+      this.alphaLabel = labelhash('alpha');
+      this.alphaRoot = web3.utils.soliditySha3(
+        { type: 'bytes32', value: this.clubRoot },
+        { type: 'bytes32', value: this.alphaLabel }
+      );
 
       await this.registry.configureEns(
         this.ens.address,
         this.wrapper.address,
         this.agentRoot,
         this.clubRoot,
-        '0x'.padEnd(66, '0'),
+        this.alphaRoot,
         false,
         {
           from: owner,
@@ -201,18 +206,35 @@ contract('IdentityRegistry', (accounts) => {
       assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
     });
 
-    it('derives nested club nodes for alpha tiers', async function () {
-      const alphaLabel = labelhash('alpha');
-      const alphaNode = web3.utils.soliditySha3({ type: 'bytes32', value: this.clubRoot }, { type: 'bytes32', value: alphaLabel });
-      await this.ens.setSubnodeOwner(this.clubRoot, alphaLabel, owner, { from: owner });
+    it('derives nested club nodes for alpha tiers gated by activation flag', async function () {
+      await this.ens.setSubnodeOwner(this.clubRoot, this.alphaLabel, owner, { from: owner });
 
       const memberLabel = labelhash('vip');
-      await this.ens.setSubnodeOwner(alphaNode, memberLabel, client, { from: owner });
+      await this.ens.setSubnodeOwner(this.alphaRoot, memberLabel, client, { from: owner });
 
-      assert.isTrue(await this.registry.isClubAddress(client, [alphaLabel, memberLabel]));
-      assert.isFalse(await this.registry.isClubAddress(worker, [alphaLabel, memberLabel]));
+      assert.isFalse(
+        await this.registry.isClubAddress(client, [this.alphaLabel, memberLabel]),
+        'alpha identities remain inactive until alphaEnabled flips'
+      );
+      assert.isFalse(await this.registry.isClubAddress(worker, [this.alphaLabel, memberLabel]));
+      await expectRevert.unspecified(this.registry.clubNodeOwner([this.alphaLabel, memberLabel]));
 
-      assert.strictEqual(await this.registry.clubNodeOwner([alphaLabel, memberLabel]), client);
+      await this.registry.configureEns(
+        this.ens.address,
+        this.wrapper.address,
+        this.agentRoot,
+        this.clubRoot,
+        this.alphaRoot,
+        true,
+        {
+          from: owner,
+        }
+      );
+
+      assert.isTrue(await this.registry.isClubAddress(client, [this.alphaLabel, memberLabel]));
+      assert.isFalse(await this.registry.isClubAddress(worker, [this.alphaLabel, memberLabel]));
+
+      assert.strictEqual(await this.registry.clubNodeOwner([this.alphaLabel, memberLabel]), client);
     });
 
     it('reverts when ENS registry is not configured', async function () {
