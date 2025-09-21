@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import {Ownable} from "../libs/Ownable.sol";
+import {Pausable} from "../libs/Pausable.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 import {StakeManager} from "./StakeManager.sol";
 import {FeePool} from "./FeePool.sol";
@@ -11,7 +11,7 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 
 /// @title JobRegistry
 /// @notice Coordinates job lifecycle, stake locking, and fee routing.
-contract JobRegistry is Ownable, ReentrancyGuard {
+contract JobRegistry is Pausable, ReentrancyGuard {
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
     enum JobState { None, Created, Committed, Revealed, Finalized, Disputed }
@@ -165,7 +165,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     /// @notice Creates a new job and reserves stake for the workflow.
     /// @param stakeAmount Amount of stake the worker must lock.
     /// @return jobId Identifier assigned to the created job.
-    function createJob(uint256 stakeAmount) external returns (uint256 jobId) {
+    function createJob(uint256 stakeAmount) external whenNotPaused returns (uint256 jobId) {
         _requireLifecycleConfigured();
         require(stakeAmount > 0, "JobRegistry: stake amount");
         Timings memory cfg = timings;
@@ -183,7 +183,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     /// @notice Commits to performing a job by locking stake and storing the commit hash.
     /// @param jobId Identifier of the job being committed to.
     /// @param commitHash Hash of the worker's secret submission.
-    function commitJob(uint256 jobId, bytes32 commitHash) external nonReentrant {
+    function commitJob(uint256 jobId, bytes32 commitHash) external nonReentrant whenNotPaused {
         _requireModulesConfigured();
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Created);
@@ -201,7 +201,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     /// @notice Reveals the committed work product for a job.
     /// @param jobId Identifier of the job being revealed.
     /// @param commitSecret Secret value that was hashed during the commit phase.
-    function revealJob(uint256 jobId, bytes32 commitSecret) external {
+    function revealJob(uint256 jobId, bytes32 commitSecret) external whenNotPaused {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Committed);
         // slither-disable-next-line timestamp
@@ -216,7 +216,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     /// @notice Finalizes a job and settles stake, distributing fees as required.
     /// @param jobId Identifier of the job being finalized.
     /// @param success Flag indicating whether the job succeeded (used for off-chain context).
-    function finalizeJob(uint256 jobId, bool success) external onlyOwner nonReentrant {
+    function finalizeJob(uint256 jobId, bool success) external onlyOwner nonReentrant whenNotPaused {
         _requireModulesConfigured();
         _requireThresholdsConfigured();
         Job storage job = jobs[jobId];
@@ -240,7 +240,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
 
     /// @notice Raises a dispute for a job that is in the reveal or committed state.
     /// @param jobId Identifier of the disputed job.
-    function raiseDispute(uint256 jobId) external nonReentrant {
+    function raiseDispute(uint256 jobId) external nonReentrant whenNotPaused {
         _requireModulesConfigured();
         Job storage job = jobs[jobId];
         if (job.state != JobState.Revealed && job.state != JobState.Committed) {
@@ -265,6 +265,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
         external
         onlyOwner
         nonReentrant
+        whenNotPaused
     {
         _requireModulesConfigured();
         _requireThresholdsConfigured();
@@ -304,7 +305,7 @@ contract JobRegistry is Ownable, ReentrancyGuard {
     /// @notice Finalizes a job that failed to progress before the dispute window elapsed.
     /// @param jobId Identifier of the job being timed out.
     /// @param slashAmount Portion of stake to slash when finalizing the timeout.
-    function timeoutJob(uint256 jobId, uint256 slashAmount) external onlyOwner nonReentrant {
+    function timeoutJob(uint256 jobId, uint256 slashAmount) external onlyOwner nonReentrant whenNotPaused {
         _requireModulesConfigured();
         _requireThresholdsConfigured();
 

@@ -991,7 +991,7 @@ contract('JobRegistry', (accounts) => {
       assert.isTrue(await this.jobRegistry.isFullyConfigured());
     });
 
-    it('prevents lifecycle interactions until fully configured', async function () {
+  it('prevents lifecycle interactions until fully configured', async function () {
       await expectCustomError(
         this.jobRegistry.createJob('100', { from: client }),
         'JobRegistry.NotConfigured("modules")'
@@ -1032,6 +1032,75 @@ contract('JobRegistry', (accounts) => {
 
       const receipt = await this.jobRegistry.createJob('150', { from: client });
       expectEvent(receipt, 'JobCreated', { client });
+    });
+
+    describe('pausable controls', () => {
+      it('blocks lifecycle transitions while paused and resumes when unpaused', async function () {
+        await this.jobRegistry.setModules(
+          {
+            identity: this.identity.address,
+            staking: this.stakeManager.address,
+            validation: this.validation.address,
+            dispute: this.dispute.address,
+            reputation: this.reputation.address,
+            feePool: this.feePool.address,
+          },
+          { from: deployer }
+        );
+        await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
+        await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
+        await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
+        await this.stakeManager.setFeeRecipient(this.feePool.address, { from: deployer });
+        await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });
+        await this.dispute.setJobRegistry(this.jobRegistry.address, { from: deployer });
+        await this.reputation.setJobRegistry(this.jobRegistry.address, { from: deployer });
+
+        await this.stakeManager.deposit('500', { from: worker });
+
+        const commitSecret1 = web3.utils.soliditySha3('commit-secret-1');
+        const commitHash1 = web3.utils.keccak256(commitSecret1);
+        const { logs: createdLogs } = await this.jobRegistry.createJob('100', { from: client });
+        const jobId1 = createdLogs.find((l) => l.event === 'JobCreated').args.jobId;
+
+        await this.jobRegistry.commitJob(jobId1, commitHash1, { from: worker });
+        await this.jobRegistry.revealJob(jobId1, commitSecret1, { from: worker });
+
+        await expectRevert(this.jobRegistry.pause({ from: worker }), 'Ownable: caller is not the owner');
+
+        const pauseReceipt = await this.jobRegistry.pause({ from: deployer });
+        expectEvent(pauseReceipt, 'Paused', { account: deployer });
+        assert.isTrue(await this.jobRegistry.paused());
+
+        await expectRevert(
+          this.jobRegistry.finalizeJob(jobId1, true, { from: deployer }),
+          'Pausable: paused'
+        );
+        await expectRevert(this.jobRegistry.createJob('50', { from: client }), 'Pausable: paused');
+
+        await expectRevert(this.jobRegistry.unpause({ from: worker }), 'Ownable: caller is not the owner');
+
+        const unpauseReceipt = await this.jobRegistry.unpause({ from: deployer });
+        expectEvent(unpauseReceipt, 'Unpaused', { account: deployer });
+        assert.isFalse(await this.jobRegistry.paused());
+
+        await this.jobRegistry.finalizeJob(jobId1, true, { from: deployer });
+
+        const commitSecret2 = web3.utils.soliditySha3('commit-secret-2');
+        const commitHash2 = web3.utils.keccak256(commitSecret2);
+        const { logs: secondLogs } = await this.jobRegistry.createJob('80', { from: client });
+        const jobId2 = secondLogs.find((l) => l.event === 'JobCreated').args.jobId;
+
+        await this.jobRegistry.pause({ from: deployer });
+        assert.isTrue(await this.jobRegistry.paused());
+
+        await expectRevert(
+          this.jobRegistry.commitJob(jobId2, commitHash2, { from: worker }),
+          'Pausable: paused'
+        );
+
+        await this.jobRegistry.unpause({ from: deployer });
+        await this.jobRegistry.commitJob(jobId2, commitHash2, { from: worker });
+      });
     });
   });
 });

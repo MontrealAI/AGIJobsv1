@@ -202,5 +202,31 @@ contract('StakeManager', (accounts) => {
       assert.strictEqual((await this.manager.lockedAmounts(staker)).toString(), '350');
       assert.strictEqual((await this.manager.availableStake(staker)).toString(), '650');
     });
+
+    it('enforces pausing across staking actions while keeping withdrawals available', async function () {
+      await this.manager.setFeeRecipient(feeRecipient, { from: owner });
+      await this.manager.deposit('600', { from: staker });
+
+      await expectRevert(this.manager.pause({ from: registry }), 'Ownable: caller is not the owner');
+
+      const pauseReceipt = await this.manager.pause({ from: owner });
+      expectEvent(pauseReceipt, 'Paused', { account: owner });
+      assert.isTrue(await this.manager.paused());
+
+      await expectRevert(this.manager.deposit('100', { from: staker }), 'Pausable: paused');
+      await expectRevert(this.manager.lockStake(staker, '100', { from: registry }), 'Pausable: paused');
+
+      const withdrawReceipt = await this.manager.withdraw('200', { from: staker });
+      expectEvent(withdrawReceipt, 'Withdrawn', { account: staker, amount: web3.utils.toBN(200) });
+
+      const unpauseReceipt = await this.manager.unpause({ from: owner });
+      expectEvent(unpauseReceipt, 'Unpaused', { account: owner });
+      assert.isFalse(await this.manager.paused());
+
+      await this.manager.lockStake(staker, '150', { from: registry });
+      const settleReceipt = await this.manager.settleStake(staker, '100', '50', { from: registry });
+      expectEvent(settleReceipt, 'Released', { account: staker, amount: web3.utils.toBN(100) });
+      expectEvent(settleReceipt, 'Slashed', { account: staker, amount: web3.utils.toBN(50) });
+    });
   });
 });
