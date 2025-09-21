@@ -183,12 +183,36 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
     validateAddress(errors, fileLabel, registry, { field: 'registry', allowZero: false });
   }
 
+  const nameWrapper = data.nameWrapper;
+  if (nameWrapper !== null && nameWrapper !== undefined) {
+    if (typeof nameWrapper !== 'string') {
+      addError(errors, fileLabel, 'nameWrapper must be a string when specified');
+    } else if (variant === 'mainnet' || variant === 'sepolia') {
+      validateAddress(errors, fileLabel, nameWrapper, { field: 'nameWrapper' });
+    } else if (!equalsIgnoreCase(nameWrapper, ZERO_ADDRESS)) {
+      validateAddress(errors, fileLabel, nameWrapper, { field: 'nameWrapper' });
+    }
+  }
+
   const requireRoots = variant === 'mainnet' || variant === 'sepolia';
   validateEnsRoot(errors, fileLabel, data, 'agentRoot', 'agentRootHash', {
     required: requireRoots,
   });
   validateEnsRoot(errors, fileLabel, data, 'clubRoot', 'clubRootHash', {
     required: requireRoots,
+  });
+
+  let alphaEnabled = false;
+  if (data.alphaEnabled !== null && data.alphaEnabled !== undefined) {
+    if (typeof data.alphaEnabled !== 'boolean') {
+      addError(errors, fileLabel, 'alphaEnabled must be a boolean when specified');
+    } else {
+      alphaEnabled = data.alphaEnabled;
+    }
+  }
+
+  validateEnsRoot(errors, fileLabel, data, 'alphaClubRoot', 'alphaClubRootHash', {
+    required: alphaEnabled,
   });
 }
 
@@ -275,7 +299,7 @@ function validateRegistrarConfig(errors, fileLabel, data) {
     return;
   }
 
-  const ensKeys = new Set(['agentRootHash', 'clubRootHash']);
+  const ensKeys = new Set(['agentRootHash', 'clubRootHash', 'alphaClubRootHash']);
 
   domains.forEach((domain) => {
     const domainName = typeof domain?.name === 'string' ? domain.name : '<unnamed>';
