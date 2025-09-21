@@ -1,5 +1,6 @@
 {
   "registry": "0x0000000000000000000000000000000000000000",
+  "nameWrapper": null,
   "agentRoot": null,
   "clubRoot": null,
   "agentRootHash": null,
