@@ -69,9 +69,14 @@ library EnsOwnership {
 
     function _wrappedOwnerViaGetData(address wrapper, uint256 tokenId) private view returns (address) {
         try IENSNameWrapperLike(wrapper).getData(tokenId) returns (address wrappedOwner, uint32 fuses, uint64 expiry) {
-            // Silence warnings about unused tuple components while ensuring compatibility with the interface.
-            fuses;
-            expiry;
+            if (wrappedOwner == address(0) && fuses == 0 && expiry == 0) {
+                return address(0);
+            }
+
+            if (expiry != 0 && expiry < block.timestamp) {
+                return address(0);
+            }
+
             return wrappedOwner;
         } catch {
             return address(0);
