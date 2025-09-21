@@ -23,9 +23,10 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 - Protocol-wide pause capability halts new lifecycle invocations during incidents while preserving recovery flows through `StakeManager`.
 - Incident runbooks require governance to document the reason for any pause and reference the Safe transactions used so auditors
   can correlate mitigations with on-chain events.
-- Alpha Club premium tier remains opt-in until governance flips `alphaEnabled` via `IdentityRegistry.configureEns`. The
-  deployment log (`docs/mainnet-deployment-simulation.md`) must be updated with the activation hash so integrators can confirm
-  when premium identities become part of the supported surface area.
+- Alpha Club premium tier remains opt-in until governance flips `alphaEnabled` via `IdentityRegistry.configureEns`. Until the
+  activation transaction lands, `IdentityRegistry.isClubAddress` returns `false` for alpha derivations and `clubNodeOwner`
+  reverts, keeping premium identities inert. The deployment log (`docs/mainnet-deployment-simulation.md`) must be updated with
+  the activation hash so integrators can confirm when premium identities become part of the supported surface area.
 - Unit tests cover lifecycle happy paths and dispute resolution bounds.
 - Static analysis (Solhint, Slither) and fuzzing (Echidna smoke) wired via CI.
 
@@ -34,5 +35,6 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 - Off-chain components (Safe, ENS) must be configured correctly by deployment operators.
 - Governance timelock delay must be calibrated for stakeholder response time.
 - Paused operations require coordinated response to resume activity and complete any queued job settlements.
-- Advertising Alpha Club labels before `alphaEnabled` flips may confuse downstream integrations. Communications must align with
-  the on-chain flag to avoid prematurely onboarding users to an inactive premium tier.
+- Advertising Alpha Club labels before `alphaEnabled` flips may still confuse downstream integrations. Communications must align
+  with the on-chain flag—and note that on-chain checks now reject alpha identities until activation—to avoid prematurely
+  onboarding users to an inactive premium tier.

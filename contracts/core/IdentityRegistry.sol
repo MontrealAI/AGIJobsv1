@@ -7,6 +7,7 @@ import {Ownable} from "../libs/Ownable.sol";
 /// @title IdentityRegistry
 /// @notice Maintains ENS related configuration and an emergency allow list.
 contract IdentityRegistry is Ownable {
+    error AlphaClubInactive();
     event EnsConfigured(
         address indexed registry,
         address indexed wrapper,
@@ -101,7 +102,7 @@ contract IdentityRegistry is Ownable {
     /// @return node ENS node hash representing the derived subdomain.
     function resolveClubNode(bytes32[] calldata labels) external view returns (bytes32 node) {
         _ensureEnsConfigured();
-        node = _deriveNode(_requireClubRoot(), labels);
+        (node, ) = _deriveClubNode(labels);
     }
 
     /// @notice Verifies that the provided account currently controls the derived agent subdomain.
@@ -119,7 +120,11 @@ contract IdentityRegistry is Ownable {
     /// @return True if the ENS registry reports the account as the owner of the derived node.
     function isClubAddress(address account, bytes32[] calldata labels) external view returns (bool) {
         _ensureEnsConfigured();
-        return _ownsNode(account, _deriveNode(_requireClubRoot(), labels));
+        (bytes32 node, bool traversedAlpha) = _deriveClubNode(labels);
+        if (traversedAlpha && !alphaEnabled) {
+            return false;
+        }
+        return _ownsNode(account, node);
     }
 
     /// @notice Returns the account that currently owns the resolved agent node.
@@ -135,13 +140,28 @@ contract IdentityRegistry is Ownable {
     /// @return Address returned by the ENS registry for the derived node.
     function clubNodeOwner(bytes32[] calldata labels) external view returns (address) {
         _ensureEnsConfigured();
-        return _nodeOwner(_deriveNode(_requireClubRoot(), labels));
+        (bytes32 node, bool traversedAlpha) = _deriveClubNode(labels);
+        if (traversedAlpha && !alphaEnabled) {
+            revert AlphaClubInactive();
+        }
+        return _nodeOwner(node);
     }
 
     function _deriveNode(bytes32 root, bytes32[] calldata labels) private pure returns (bytes32 node) {
         node = root;
         for (uint256 i = 0; i < labels.length; i++) {
             node = keccak256(abi.encodePacked(node, labels[i]));
+        }
+    }
+
+    function _deriveClubNode(bytes32[] calldata labels) private view returns (bytes32 node, bool traversedAlpha) {
+        node = _requireClubRoot();
+        bytes32 alphaRoot = alphaClubRootHash;
+        for (uint256 i = 0; i < labels.length; i++) {
+            node = keccak256(abi.encodePacked(node, labels[i]));
+            if (alphaRoot != bytes32(0) && node == alphaRoot) {
+                traversedAlpha = true;
+            }
         }
     }
 

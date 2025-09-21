@@ -52,9 +52,12 @@ pre-flight checklist before running against the live network.
    flip `alphaEnabled` to `true` via `IdentityRegistry.configureEns`. The
    configuration JSON already embeds the `alphaClubRootHash`, so the Safe only
    needs to pass the stored value when calling `configureEns(alphaClubRootHash,
-   true)`. Capture the decision, execution transaction hash, and post-action
-   `alphaEnabled()` result in this log once finalized so downstream integrators
-   know whether premium subdomains are live.
+   true)`. While the flag remains `false`, `IdentityRegistry.isClubAddress`
+   returns `false` for every alpha derivation and `clubNodeOwner` will revert,
+   ensuring premium identities stay inert until governance approves them. Capture
+   the decision, execution transaction hash, and post-action `alphaEnabled()`
+   result in this log once finalized so downstream integrators know whether
+   premium subdomains are live.
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
