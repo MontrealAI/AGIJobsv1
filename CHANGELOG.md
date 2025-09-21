@@ -9,4 +9,6 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Alpha ENS configuration now respects the feature flag to prevent accidental registry writes in downstream environments.
 - Expanded deployment and operations docs with the latest pause drill and ENS wiring guidance.
+- Hardened `IdentityRegistry.configureEns` so Alpha Club activation requires a non-zero `alphaClubRootHash`, preventing accidental
+  launches without the premium ENS root configured.
 

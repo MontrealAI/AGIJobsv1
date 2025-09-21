@@ -77,6 +77,25 @@ contract('IdentityRegistry', (accounts) => {
     assert.strictEqual(await this.registry.ensNameWrapper(), constants.ZERO_ADDRESS);
   });
 
+  it('requires a non-zero alpha root when enabling the alpha tier', async function () {
+    const agentHash = web3.utils.randomHex(32);
+    const clubHash = web3.utils.randomHex(32);
+    await expectRevert(
+      this.registry.configureEns(
+        stranger,
+        worker,
+        agentHash,
+        clubHash,
+        '0x'.padEnd(66, '0'),
+        true,
+        {
+          from: owner,
+        }
+      ),
+      'IdentityRegistry: alpha hash'
+    );
+  });
+
   it('manages emergency allow list and queries', async function () {
     await this.registry.setEmergencyAccess(emergency, true, { from: owner });
     assert.isTrue(await this.registry.hasEmergencyAccess(emergency));
