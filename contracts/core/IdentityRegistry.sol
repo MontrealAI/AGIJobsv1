@@ -1,40 +1,45 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {EnsOwnership} from "../libs/EnsOwnership.sol";
 import {Ownable} from "../libs/Ownable.sol";
-
-interface IENSLike {
-    function owner(bytes32 node) external view returns (address);
-}
 
 /// @title IdentityRegistry
 /// @notice Maintains ENS related configuration and an emergency allow list.
 contract IdentityRegistry is Ownable {
-    event EnsConfigured(address indexed registry, bytes32 agentRootHash, bytes32 clubRootHash);
+    event EnsConfigured(address indexed registry, address indexed wrapper, bytes32 agentRootHash, bytes32 clubRootHash);
     event EmergencyAccessUpdated(address indexed account, bool allowed);
 
     address public ensRegistry;
+    address public ensNameWrapper;
     bytes32 public agentRootHash;
     bytes32 public clubRootHash;
 
     mapping(address => bool) private _emergencyAllowList;
 
     string private constant _ENS_UNCONFIGURED = "IdentityRegistry: ENS";
+    string private constant _WRAPPER_UNCONFIGURED = "IdentityRegistry: ENS wrapper";
     string private constant _AGENT_ROOT_UNCONFIGURED = "IdentityRegistry: agent root";
     string private constant _CLUB_ROOT_UNCONFIGURED = "IdentityRegistry: club root";
 
-    /// @notice Configures the ENS registry and root hashes for access control.
+    /// @notice Configures the ENS registry, NameWrapper and root hashes for access control.
     /// @param registry Address of the ENS registry used for verification.
+    /// @param wrapper Address of the ENS NameWrapper responsible for wrapped ownership.
     /// @param agentHash Node hash representing the authorized agent subdomain.
     /// @param clubHash Node hash representing the authorized club subdomain.
-    function configureMainnet(address registry, bytes32 agentHash, bytes32 clubHash) external onlyOwner {
+    function configureMainnet(address registry, address wrapper, bytes32 agentHash, bytes32 clubHash)
+        external
+        onlyOwner
+    {
         require(registry != address(0), "IdentityRegistry: registry");
+        require(wrapper != address(0), "IdentityRegistry: wrapper");
         require(agentHash != bytes32(0), "IdentityRegistry: agent hash");
         require(clubHash != bytes32(0), "IdentityRegistry: club hash");
         ensRegistry = registry;
+        ensNameWrapper = wrapper;
         agentRootHash = agentHash;
         clubRootHash = clubHash;
-        emit EnsConfigured(registry, agentHash, clubHash);
+        emit EnsConfigured(registry, wrapper, agentHash, clubHash);
     }
 
     /// @notice Adds or removes an address from the emergency allow list.
@@ -127,12 +132,12 @@ contract IdentityRegistry is Ownable {
         if (account == address(0)) {
             return false;
         }
-        return _nodeOwner(node) == account;
+        return EnsOwnership.isOwner(ensRegistry, ensNameWrapper, node, account);
     }
 
     function _nodeOwner(bytes32 node) private view returns (address) {
         _ensureEnsConfigured();
-        return IENSLike(ensRegistry).owner(node);
+        return EnsOwnership.owner(ensRegistry, ensNameWrapper, node);
     }
 
     function _requireAgentRoot() private view returns (bytes32) {
@@ -149,5 +154,6 @@ contract IdentityRegistry is Ownable {
 
     function _ensureEnsConfigured() private view {
         require(ensRegistry != address(0), _ENS_UNCONFIGURED);
+        require(ensNameWrapper != address(0), _WRAPPER_UNCONFIGURED);
     }
 }

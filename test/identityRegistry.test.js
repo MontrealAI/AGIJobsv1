@@ -3,6 +3,7 @@ const { hash: namehash } = require('eth-ens-namehash');
 
 const IdentityRegistry = artifacts.require('IdentityRegistry');
 const MockENSRegistry = artifacts.require('MockENSRegistry');
+const MockENSNameWrapper = artifacts.require('MockENSNameWrapper');
 
 contract('IdentityRegistry', (accounts) => {
   const [owner, stranger, emergency, worker, client] = accounts;
@@ -14,25 +15,43 @@ contract('IdentityRegistry', (accounts) => {
   it('allows owner to configure ENS registry', async function () {
     const agentHash = web3.utils.randomHex(32);
     const clubHash = web3.utils.randomHex(32);
-    await this.registry.configureMainnet(stranger, agentHash, clubHash, { from: owner });
+    await this.registry.configureMainnet(stranger, worker, agentHash, clubHash, { from: owner });
     assert.strictEqual(await this.registry.ensRegistry(), stranger);
+    assert.strictEqual(await this.registry.ensNameWrapper(), worker);
     assert.strictEqual(await this.registry.agentRootHash(), agentHash);
     assert.strictEqual(await this.registry.clubRootHash(), clubHash);
   });
 
   it('rejects configure from non-owner', async function () {
     await expectRevert(
-      this.registry.configureMainnet(stranger, web3.utils.randomHex(32), web3.utils.randomHex(32), { from: stranger }),
+      this.registry.configureMainnet(stranger, worker, web3.utils.randomHex(32), web3.utils.randomHex(32), {
+        from: stranger
+      }),
       'Ownable: caller is not the owner'
     );
   });
 
   it('requires a non-zero registry address', async function () {
     await expectRevert(
-      this.registry.configureMainnet(constants.ZERO_ADDRESS, web3.utils.randomHex(32), web3.utils.randomHex(32), {
+      this.registry.configureMainnet(
+        constants.ZERO_ADDRESS,
+        worker,
+        web3.utils.randomHex(32),
+        web3.utils.randomHex(32),
+        {
+          from: owner
+        }
+      ),
+      'IdentityRegistry: registry'
+    );
+  });
+
+  it('requires a non-zero wrapper address', async function () {
+    await expectRevert(
+      this.registry.configureMainnet(stranger, constants.ZERO_ADDRESS, web3.utils.randomHex(32), web3.utils.randomHex(32), {
         from: owner
       }),
-      'IdentityRegistry: registry'
+      'IdentityRegistry: wrapper'
     );
   });
 
@@ -52,7 +71,7 @@ contract('IdentityRegistry', (accounts) => {
   it('validates agent and club node hashes', async function () {
     const agent = web3.utils.keccak256('agent-root');
     const club = web3.utils.keccak256('club-root');
-    await this.registry.configureMainnet(stranger, agent, club, { from: owner });
+    await this.registry.configureMainnet(stranger, worker, agent, club, { from: owner });
 
     assert.isTrue(await this.registry.isAgentNode(agent));
     assert.isFalse(await this.registry.isAgentNode(web3.utils.randomHex(32)));
@@ -62,14 +81,14 @@ contract('IdentityRegistry', (accounts) => {
 
   it('rejects zero root hashes during configuration', async function () {
     await expectRevert(
-      this.registry.configureMainnet(stranger, web3.utils.randomHex(32), '0x'.padEnd(66, '0'), {
+      this.registry.configureMainnet(stranger, worker, web3.utils.randomHex(32), '0x'.padEnd(66, '0'), {
         from: owner,
       }),
       'IdentityRegistry: club hash'
     );
 
     await expectRevert(
-      this.registry.configureMainnet(stranger, '0x'.padEnd(66, '0'), web3.utils.randomHex(32), {
+      this.registry.configureMainnet(stranger, worker, '0x'.padEnd(66, '0'), web3.utils.randomHex(32), {
         from: owner,
       }),
       'IdentityRegistry: agent hash'
@@ -82,10 +101,13 @@ contract('IdentityRegistry', (accounts) => {
 
     beforeEach(async function () {
       this.ens = await MockENSRegistry.new({ from: owner });
+      this.wrapper = await MockENSNameWrapper.new({ from: owner });
       this.agentRoot = namehash('agent.agi.eth');
       this.clubRoot = namehash('club.agi.eth');
 
-      await this.registry.configureMainnet(this.ens.address, this.agentRoot, this.clubRoot, { from: owner });
+      await this.registry.configureMainnet(this.ens.address, this.wrapper.address, this.agentRoot, this.clubRoot, {
+        from: owner
+      });
 
       await this.ens.setSubnodeOwner(ZERO_NODE, labelhash('eth'), owner, { from: owner });
       const ethNode = namehash('eth');
@@ -102,6 +124,34 @@ contract('IdentityRegistry', (accounts) => {
       assert.isTrue(await this.registry.isAgentAddress(worker, [workerLabel]));
       assert.isFalse(await this.registry.isAgentAddress(stranger, [workerLabel]));
 
+      assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
+    });
+
+    it('resolves wrapped ownership via the NameWrapper', async function () {
+      const workerLabel = labelhash('builder');
+      await this.ens.setSubnodeOwner(this.agentRoot, workerLabel, this.wrapper.address, { from: owner });
+
+      await this.wrapper.setWrappedOwner(
+        web3.utils.soliditySha3({ type: 'bytes32', value: this.agentRoot }, { type: 'bytes32', value: workerLabel }),
+        worker
+      );
+
+      assert.isTrue(await this.registry.isAgentAddress(worker, [workerLabel]));
+      assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
+    });
+
+    it('falls back to getData when ownerOf is unavailable', async function () {
+      const workerLabel = labelhash('builder');
+      await this.ens.setSubnodeOwner(this.agentRoot, workerLabel, this.wrapper.address, { from: owner });
+
+      const node = web3.utils.soliditySha3(
+        { type: 'bytes32', value: this.agentRoot },
+        { type: 'bytes32', value: workerLabel }
+      );
+      await this.wrapper.setWrappedOwner(node, worker);
+      await this.wrapper.setOwnerOfEnabled(false);
+
+      assert.isTrue(await this.registry.isAgentAddress(worker, [workerLabel]));
       assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
     });
 
