@@ -24,18 +24,10 @@ library EnsOwnership {
             return currentOwner;
         }
 
-        uint256 tokenId = uint256(node);
-        try IENSNameWrapperLike(wrapper).ownerOf(tokenId) returns (address wrappedOwner) {
-            if (wrappedOwner != address(0)) {
-                return wrappedOwner;
-            }
-        } catch {}
-
-        try IENSNameWrapperLike(wrapper).getData(tokenId) returns (address wrappedOwner, uint32, uint64) {
-            if (wrappedOwner != address(0)) {
-                return wrappedOwner;
-            }
-        } catch {}
+        address wrappedOwner = _resolveWrappedOwner(wrapper, uint256(node));
+        if (wrappedOwner != address(0)) {
+            return wrappedOwner;
+        }
 
         return currentOwner;
     }
@@ -51,6 +43,38 @@ library EnsOwnership {
         node = root;
         for (uint256 i = 0; i < labels.length; i++) {
             node = keccak256(abi.encodePacked(node, labels[i]));
+        }
+    }
+
+    function _resolveWrappedOwner(address wrapper, uint256 tokenId) private view returns (address) {
+        if (wrapper == address(0)) {
+            return address(0);
+        }
+
+        address wrappedOwner = _wrappedOwnerViaOwnerOf(wrapper, tokenId);
+        if (wrappedOwner != address(0)) {
+            return wrappedOwner;
+        }
+
+        return _wrappedOwnerViaGetData(wrapper, tokenId);
+    }
+
+    function _wrappedOwnerViaOwnerOf(address wrapper, uint256 tokenId) private view returns (address) {
+        try IENSNameWrapperLike(wrapper).ownerOf(tokenId) returns (address wrappedOwner) {
+            return wrappedOwner;
+        } catch {
+            return address(0);
+        }
+    }
+
+    function _wrappedOwnerViaGetData(address wrapper, uint256 tokenId) private view returns (address) {
+        try IENSNameWrapperLike(wrapper).getData(tokenId) returns (address wrappedOwner, uint32 fuses, uint64 expiry) {
+            // Silence warnings about unused tuple components while ensuring compatibility with the interface.
+            fuses;
+            expiry;
+            return wrappedOwner;
+        } catch {
+            return address(0);
         }
     }
 }

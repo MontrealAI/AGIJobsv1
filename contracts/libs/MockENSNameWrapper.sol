@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {IENSNameWrapperLike} from "./EnsOwnership.sol";
+
 /// @dev Minimal ENS NameWrapper mock that allows toggling the ownerOf behaviour.
-contract MockENSNameWrapper {
+contract MockENSNameWrapper is IENSNameWrapperLike {
     error OwnerOfDisabled();
 
     mapping(uint256 => address) private _owners;
@@ -16,14 +18,14 @@ contract MockENSNameWrapper {
         _ownerOfEnabled = enabled;
     }
 
-    function ownerOf(uint256 id) external view returns (address) {
+    function ownerOf(uint256 id) external view override returns (address) {
         if (!_ownerOfEnabled) {
             revert OwnerOfDisabled();
         }
         return _owners[id];
     }
 
-    function getData(uint256 id) external view returns (address owner, uint32 fuses, uint64 expiry) {
+    function getData(uint256 id) external view override returns (address owner, uint32 fuses, uint64 expiry) {
         owner = _owners[id];
         fuses = 0;
         expiry = 0;

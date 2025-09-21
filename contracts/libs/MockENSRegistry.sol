@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.23;
+pragma solidity ^0.8.23;
+
+import {IENSRegistryLike} from "./EnsOwnership.sol";
 
 /// @dev Lightweight ENS registry used for tests that require ownership tracking.
-contract MockENSRegistry {
+contract MockENSRegistry is IENSRegistryLike {
     event Transfer(bytes32 indexed node, address owner);
     event NewOwner(bytes32 indexed node, bytes32 indexed label, address owner);
 
@@ -16,7 +18,7 @@ contract MockENSRegistry {
     /// @notice Returns the current owner for a node hash.
     /// @param node Hash identifying the ENS node.
     /// @return Address that controls the specified node.
-    function owner(bytes32 node) external view returns (address) {
+    function owner(bytes32 node) external view override returns (address) {
         return _owners[node];
     }
 
