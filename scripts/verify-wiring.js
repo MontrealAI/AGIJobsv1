@@ -8,7 +8,27 @@ const FeePool = artifacts.require('FeePool');
 const CertificateNFT = artifacts.require('CertificateNFT');
 
 const params = require('../config/params.json');
-const { readConfig } = require('./config-loader');
+const { readConfig, resolveVariant } = require('./config-loader');
+
+const NAME_WRAPPER_ABI = [
+  {
+    constant: true,
+    inputs: [],
+    name: 'ens',
+    outputs: [{ name: '', type: 'address' }],
+    payable: false,
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
+const MAINNET_EXPECTATIONS = Object.freeze({
+  agiToken: '0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA',
+  agiSymbol: 'AGIALPHA',
+  agiName: 'AGI ALPHA AGENT',
+  ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
+  nameWrapper: '0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401',
+});
 
 function extractNetwork(argv) {
   const networkFlagIndex = argv.findIndex((arg) => arg === '--network');
@@ -99,6 +119,8 @@ module.exports = async function (callback) {
       extractNetwork(process.argv) || process.env.NETWORK || process.env.TRUFFLE_NETWORK;
     const agiCfg = readConfig('agialpha', networkName);
     const ensCfg = readConfig('ens', networkName);
+    const variant = resolveVariant(networkName);
+    const isMainnet = variant === 'mainnet';
 
     const jobRegistry = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -125,6 +147,45 @@ module.exports = async function (callback) {
         );
       }
     };
+
+    if (isMainnet) {
+      if (!agiCfg || typeof agiCfg !== 'object') {
+        throw new Error('Missing agialpha configuration for mainnet run');
+      }
+      if (!ensCfg || typeof ensCfg !== 'object') {
+        throw new Error('Missing ENS configuration for mainnet run');
+      }
+
+      if (typeof agiCfg.token !== 'string' || agiCfg.token.toLowerCase() === 'mock') {
+        throw new Error('Mainnet requires a configured AGIALPHA token address');
+      }
+      expectEq(agiCfg.token, MAINNET_EXPECTATIONS.agiToken, 'config.agialpha.token (mainnet)');
+
+      const cfgSymbol = normalizeString(agiCfg.symbol);
+      if (cfgSymbol !== MAINNET_EXPECTATIONS.agiSymbol) {
+        throw new Error(
+          `config.agialpha.symbol must equal ${MAINNET_EXPECTATIONS.agiSymbol} on mainnet but was ${agiCfg.symbol}`
+        );
+      }
+
+      const cfgName = normalizeString(agiCfg.name);
+      if (cfgName !== MAINNET_EXPECTATIONS.agiName) {
+        throw new Error(
+          `config.agialpha.name must equal ${MAINNET_EXPECTATIONS.agiName} on mainnet but was ${agiCfg.name}`
+        );
+      }
+
+      if (!ensCfg.registry) {
+        throw new Error('config/ens.mainnet.json must define the ENS registry address');
+      }
+      expectEq(ensCfg.registry, MAINNET_EXPECTATIONS.ensRegistry, 'config.ens.registry (mainnet)');
+
+      const wrapperAddress = normalizeString(ensCfg.nameWrapper);
+      if (!wrapperAddress) {
+        throw new Error('config/ens.mainnet.json must define the ENS NameWrapper address');
+      }
+      expectEq(wrapperAddress, MAINNET_EXPECTATIONS.nameWrapper, 'config.ens.nameWrapper (mainnet)');
+    }
 
     if (expectedOwner) {
       console.log(`Checking ownership against ${expectedOwner}`);
@@ -275,6 +336,25 @@ module.exports = async function (callback) {
 
       if (ensCfg.clubRootHash) {
         expectEq(onChainClubHash, ensCfg.clubRootHash, 'identity.clubRootHash');
+      }
+
+      const wrapperAddress = normalizeString(ensCfg.nameWrapper);
+      if (wrapperAddress && wrapperAddress !== ZERO_ADDRESS) {
+        const code = await web3.eth.getCode(wrapperAddress);
+        if (!code || code === '0x') {
+          throw new Error(`ENS NameWrapper at ${wrapperAddress} has no bytecode`);
+        }
+
+        try {
+          const nameWrapperContract = new web3.eth.Contract(NAME_WRAPPER_ABI, wrapperAddress);
+          const wrapperRegistry = await nameWrapperContract.methods.ens().call();
+          if (ensCfg.registry) {
+            expectEq(wrapperRegistry, ensCfg.registry, 'nameWrapper.ens');
+          }
+        } catch (error) {
+          const message = error && error.message ? error.message : String(error);
+          throw new Error(`Failed to query ENS NameWrapper at ${wrapperAddress}: ${message}`);
+        }
       }
     }
 
