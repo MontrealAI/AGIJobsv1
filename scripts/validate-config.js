@@ -287,7 +287,7 @@ function ensureDomainNode(errors, fileLabel, domain, ensKeys) {
   return null;
 }
 
-function validateRegistrarConfig(errors, fileLabel, data) {
+function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig } = {}) {
   if (!data || typeof data !== 'object') {
     addError(errors, fileLabel, 'configuration must be an object');
     return;
@@ -297,8 +297,30 @@ function validateRegistrarConfig(errors, fileLabel, data) {
     validateAddress(errors, fileLabel, data.address, { field: 'address', allowZero: false });
   }
 
-  if (data.defaultToken !== null && data.defaultToken !== undefined) {
-    validateAddress(errors, fileLabel, data.defaultToken, { field: 'defaultToken', allowZero: false });
+  const productionNetwork = variant === 'mainnet' || variant === 'sepolia';
+  const agiToken =
+    typeof agiConfig?.token === 'string' && agiConfig.token.toLowerCase() !== 'mock'
+      ? agiConfig.token
+      : null;
+
+  const defaultToken = data.defaultToken;
+  if (defaultToken !== null && defaultToken !== undefined) {
+    validateAddress(errors, fileLabel, defaultToken, { field: 'defaultToken', allowZero: false });
+  } else if (productionNetwork) {
+    addError(errors, fileLabel, 'defaultToken must be provided for production networks');
+  }
+
+  if (
+    agiToken &&
+    typeof defaultToken === 'string' &&
+    isAddress(defaultToken) &&
+    !equalsIgnoreCase(defaultToken, agiToken)
+  ) {
+    addError(
+      errors,
+      fileLabel,
+      `defaultToken must equal ${agiToken} to match agialpha.${variant}.json`
+    );
   }
 
   const domains = data.domains;
@@ -325,6 +347,13 @@ function validateRegistrarConfig(errors, fileLabel, data) {
         field: `${domainName}.expectedToken`,
         allowZero: false,
       });
+      if (agiToken && isAddress(domain.expectedToken) && !equalsIgnoreCase(domain.expectedToken, agiToken)) {
+        addError(
+          errors,
+          fileLabel,
+          `${domainName}.expectedToken must equal ${agiToken} to match agialpha.${variant}.json`
+        );
+      }
     }
 
     if (domain.defaultDuration !== null && domain.defaultDuration !== undefined) {
@@ -354,6 +383,17 @@ function validateRegistrarConfig(errors, fileLabel, data) {
               field: `${domainName}.labels.expectedToken`,
               allowZero: false,
             });
+            if (
+              agiToken &&
+              isAddress(entry.expectedToken) &&
+              !equalsIgnoreCase(entry.expectedToken, agiToken)
+            ) {
+              addError(
+                errors,
+                fileLabel,
+                `${domainName}.labels.expectedToken must equal ${agiToken} to match agialpha.${variant}.json`
+              );
+            }
           }
 
           if (entry.minPrice !== null && entry.minPrice !== undefined) {
@@ -421,60 +461,54 @@ function validateAllConfigs({ baseDir } = {}) {
   const configDir = baseDir || path.join(__dirname, '..', 'config');
   const errors = [];
 
-  const files = [
+  const variants = [
+    { name: 'dev', files: { agialpha: 'agialpha.dev.json', ens: 'ens.dev.json', registrar: 'registrar.dev.json' } },
     {
-      name: 'agialpha.dev.json',
-      validator: (data) => validateAgiAlphaConfig(errors, 'agialpha.dev.json', data, { variant: 'dev' }),
+      name: 'mainnet',
+      files: { agialpha: 'agialpha.mainnet.json', ens: 'ens.mainnet.json', registrar: 'registrar.mainnet.json' },
     },
     {
-      name: 'agialpha.mainnet.json',
-      validator: (data) =>
-        validateAgiAlphaConfig(errors, 'agialpha.mainnet.json', data, { variant: 'mainnet' }),
-    },
-    {
-      name: 'agialpha.sepolia.json',
-      validator: (data) =>
-        validateAgiAlphaConfig(errors, 'agialpha.sepolia.json', data, { variant: 'sepolia' }),
-    },
-    {
-      name: 'ens.dev.json',
-      validator: (data) => validateEnsConfig(errors, 'ens.dev.json', data, { variant: 'dev' }),
-    },
-    {
-      name: 'ens.mainnet.json',
-      validator: (data) => validateEnsConfig(errors, 'ens.mainnet.json', data, { variant: 'mainnet' }),
-    },
-    {
-      name: 'ens.sepolia.json',
-      validator: (data) => validateEnsConfig(errors, 'ens.sepolia.json', data, { variant: 'sepolia' }),
-    },
-    {
-      name: 'registrar.dev.json',
-      validator: (data) => validateRegistrarConfig(errors, 'registrar.dev.json', data),
-    },
-    {
-      name: 'registrar.mainnet.json',
-      validator: (data) => validateRegistrarConfig(errors, 'registrar.mainnet.json', data),
-    },
-    {
-      name: 'registrar.sepolia.json',
-      validator: (data) => validateRegistrarConfig(errors, 'registrar.sepolia.json', data),
-    },
-    {
-      name: 'params.json',
-      validator: (data) => validateParamsConfig(errors, 'params.json', data),
+      name: 'sepolia',
+      files: { agialpha: 'agialpha.sepolia.json', ens: 'ens.sepolia.json', registrar: 'registrar.sepolia.json' },
     },
   ];
 
-  for (const entry of files) {
-    const filePath = path.join(configDir, entry.name);
+  const agiConfigs = {};
+
+  const readAndValidate = (fileName, validator) => {
+    const filePath = path.join(configDir, fileName);
     try {
       const data = readJson(filePath);
-      entry.validator(data);
+      validator(data);
+      return data;
     } catch (error) {
-      addError(errors, entry.name, error.message);
+      addError(errors, fileName, error.message);
+      return null;
     }
-  }
+  };
+
+  variants.forEach(({ name, files }) => {
+    const agiConfig = readAndValidate(files.agialpha, (data) =>
+      validateAgiAlphaConfig(errors, files.agialpha, data, { variant: name })
+    );
+    if (agiConfig) {
+      agiConfigs[name] = agiConfig;
+    }
+  });
+
+  variants.forEach(({ name, files }) => {
+    readAndValidate(files.ens, (data) =>
+      validateEnsConfig(errors, files.ens, data, { variant: name })
+    );
+  });
+
+  variants.forEach(({ name, files }) => {
+    readAndValidate(files.registrar, (data) =>
+      validateRegistrarConfig(errors, files.registrar, data, { variant: name, agiConfig: agiConfigs[name] })
+    );
+  });
+
+  readAndValidate('params.json', (data) => validateParamsConfig(errors, 'params.json', data));
 
   return { errors };
 }
@@ -508,6 +542,7 @@ module.exports = {
     readJson,
     validateAgiAlphaConfig,
     validateEnsConfig,
+    validateRegistrarConfig,
     validateParamsConfig,
     validateEnsRoot,
     ensureInteger,
