@@ -43,6 +43,11 @@ contract('Configuration validation', () => {
       registrarMainnet.domains[0].labels[0].label = '';
       registrarMainnet.domains[0].labels[0].expectedToken =
         '0x0000000000000000000000000000000000000002';
+      registrarMainnet.domains[0].labels.push({
+        label: 'beta',
+        minPrice: '10',
+        maxPrice: '5',
+      });
       fs.writeFileSync(registrarMainnetPath, JSON.stringify(registrarMainnet, null, 2));
 
       const { errors } = validateAllConfigs({ baseDir: tmpDir });
@@ -78,6 +83,10 @@ contract('Configuration validation', () => {
       assert.isTrue(
         errors.some((message) => message.includes('labels.expectedToken must equal')),
         'should require registrar label tokens to match agialpha token'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('labels.maxPrice must be greater than or equal to minPrice')),
+        'should flag inverted registrar price bounds'
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
