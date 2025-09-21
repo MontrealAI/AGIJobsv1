@@ -16,6 +16,11 @@ npm run config:validate
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
 
+## Advanced validation
+
+- **Property-based fuzzing** — Install [Echidna](https://github.com/crytic/echidna) locally and run `npm run fuzz:echidna` to execute the `EchidnaJobRegistryInvariants` harness with the quick `tools/echidna.yaml` profile. The command reuses the same configuration the CI smoke test runs and writes its corpus to `echidna-corpus/` (ignored from source control). For deeper campaigns, call `npm run fuzz:echidna:long` to switch to the extended `tools/echidna-long.yaml` profile used by the scheduled nightly workflow.
+- **Gas accounting** — `npm run gas` boots a transient Hardhat node, executes the full Truffle suite with `eth-gas-reporter`, and saves both the console-formatted table (`gas-report.txt`) and structured metrics (`gasReporterOutput.json`). Monitor these artifacts in PRs to flag regressions; CI uploads the same files for every run so reviewers can diff them against previous executions.
+
 ## Configure
 
 ```bash

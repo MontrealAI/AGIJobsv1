@@ -12,6 +12,8 @@
     "coverage:run": "npx hardhat coverage --testfiles 'test/**/*.js'",
     "coverage:check": "node scripts/check-coverage.js",
     "gas": "TRUFFLE_TEST=true REPORT_GAS=true node scripts/run-tests.js",
+    "fuzz:echidna": "echidna-test ./contracts/core/EchidnaJobRegistryInvariants.sol --contract EchidnaJobRegistryInvariants --config tools/echidna.yaml",
+    "fuzz:echidna:long": "echidna-test ./contracts/core/EchidnaJobRegistryInvariants.sol --contract EchidnaJobRegistryInvariants --config tools/echidna-long.yaml",
     "dev:prep": "npm run namehash:dev && npx truffle exec scripts/seed-ens-dev.js --network development",
     "migrate:dev": "npx truffle migrate --reset --network development",
     "migrate:mainnet": "npx truffle migrate --reset --network mainnet",
