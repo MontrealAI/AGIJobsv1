@@ -16,6 +16,18 @@ npm run config:validate
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
 
+### Agent gateway commit/reveal workflow
+
+Operators interacting with the on-chain gateway must follow the commit/reveal lifecycle enforced by `JobRegistry`:
+
+1. Export a WebSocket RPC endpoint (for example `JOB_REGISTRY_WS=ws://127.0.0.1:8545`) and a funded worker key (`WORKER_PRIVATE_KEY=0x…`).
+2. Subscribe to new jobs with `node examples/v2-agent-gateway.js watch` to monitor `JobCreated(uint256,address,uint256)` events as they arrive.
+3. When you decide to take a job, call `node examples/v2-agent-gateway.js commit <jobId>`. The script generates a random 32-byte secret, computes the commit hash, and persists the secret locally in `examples/.commit-secrets.json` so it can be revealed later.
+4. After producing the work product, reveal the commit with `node examples/v2-agent-gateway.js reveal <jobId>`. Successful reveals automatically delete the stored secret.
+5. Governance (or another authorized owner account) can finalize revealed jobs via `node examples/v2-agent-gateway.js finalize <jobId> <success>` which forwards the boolean success flag to `finalizeJob(jobId, success)`.
+
+Keep the `.commit-secrets.json` file secured—it contains the raw secrets required to reveal in-flight commitments. If you prefer a different storage location, override it with `JOB_COMMIT_STORE=/path/to/store.json`.
+
 ## Advanced validation
 
 - **Property-based fuzzing** — Install [Echidna](https://github.com/crytic/echidna) locally and run `npm run fuzz:echidna` to execute the `EchidnaJobRegistryInvariants` harness with the quick `tools/echidna.yaml` profile. The command reuses the same configuration the CI smoke test runs and writes its corpus to `echidna-corpus/` (ignored from source control). For deeper campaigns, call `npm run fuzz:echidna:long` to switch to the extended `tools/echidna-long.yaml` profile used by the scheduled nightly workflow.
