@@ -6,6 +6,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const AGI_MAINNET_TOKEN = '0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA';
 const AGI_MAINNET_BURN = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000';
 const ENS_MAINNET_REGISTRY = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+const ENS_MAINNET_NAME_WRAPPER = '0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401';
 const HEX_32_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
 function readJson(filePath) {
@@ -189,6 +190,13 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
       addError(errors, fileLabel, 'nameWrapper must be a string when specified');
     } else if (variant === 'mainnet' || variant === 'sepolia') {
       validateAddress(errors, fileLabel, nameWrapper, { field: 'nameWrapper' });
+      if (variant === 'mainnet' && !equalsIgnoreCase(nameWrapper, ENS_MAINNET_NAME_WRAPPER)) {
+        addError(
+          errors,
+          fileLabel,
+          `nameWrapper must equal ${ENS_MAINNET_NAME_WRAPPER} on mainnet`
+        );
+      }
     } else if (!equalsIgnoreCase(nameWrapper, ZERO_ADDRESS)) {
       validateAddress(errors, fileLabel, nameWrapper, { field: 'nameWrapper' });
     }
