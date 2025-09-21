@@ -20,6 +20,7 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 - Timelock address (if provided) required for parameter mutation.
 - Emergency allow list limited to explicitly set addresses in `IdentityRegistry`.
 - StakeManager exposes a governance-only emergency release path to unlock stuck worker stake without touching balances.
+- Protocol-wide pause capability halts new lifecycle invocations during incidents while preserving recovery flows through `StakeManager`.
 - Unit tests cover lifecycle happy paths and dispute resolution bounds.
 - Static analysis (Solhint, Slither) and fuzzing (Echidna smoke) wired via CI.
 
@@ -27,3 +28,4 @@ This document outlines key assumptions and mitigations for the AGIJobsv1 protoco
 
 - Off-chain components (Safe, ENS) must be configured correctly by deployment operators.
 - Governance timelock delay must be calibrated for stakeholder response time.
+- Paused operations require coordinated response to resume activity and complete any queued job settlements.
