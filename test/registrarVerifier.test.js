@@ -26,6 +26,7 @@ contract('Registrar verification script', (accounts) => {
             {
               label: 'alpha',
               minPrice: web3.utils.toWei('5000'),
+              maxPrice: web3.utils.toWei('5000'),
             },
           ],
         },
@@ -67,6 +68,17 @@ contract('Registrar verification script', (accounts) => {
       assert.fail('expected token mismatch to fail verification');
     } catch (error) {
       assert.include(String(error.message || error), 'token mismatch', 'should report token mismatch');
+    }
+  });
+
+  it('throws when price exceeds configured maximum', async function () {
+    await this.pricer.setPrice(web3.utils.toWei('6000'), { from: deployer });
+    const config = baseConfig(this.registrar.address, this.node);
+    try {
+      await verifyRegistrar({ web3, network: 'development', config, ensConfig: {}, logger: { log() {} } });
+      assert.fail('expected price ceiling breach to fail verification');
+    } catch (error) {
+      assert.include(String(error.message || error), 'exceeds maximum', 'should report ceiling breach');
     }
   });
 

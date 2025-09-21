@@ -378,6 +378,11 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
             addError(errors, fileLabel, `${domainName}.labels entries must include a non-empty label`);
           }
 
+          const minPriceRaw = entry.minPrice;
+          const maxPriceRaw = entry.maxPrice;
+          let minPriceValue = null;
+          let maxPriceValue = null;
+
           if (entry.expectedToken !== null && entry.expectedToken !== undefined) {
             validateAddress(errors, fileLabel, entry.expectedToken, {
               field: `${domainName}.labels.expectedToken`,
@@ -396,18 +401,30 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
             }
           }
 
-          if (entry.minPrice !== null && entry.minPrice !== undefined) {
-            const parsed = parseBigIntLike(entry.minPrice);
+          if (minPriceRaw !== null && minPriceRaw !== undefined) {
+            const parsed = parseBigIntLike(minPriceRaw);
             if (parsed === null || parsed < 0n) {
               addError(errors, fileLabel, `${domainName}.labels.minPrice must be a non-negative integer`);
+            } else {
+              minPriceValue = parsed;
             }
           }
 
-          if (entry.maxPrice !== null && entry.maxPrice !== undefined) {
-            const parsed = parseBigIntLike(entry.maxPrice);
+          if (maxPriceRaw !== null && maxPriceRaw !== undefined) {
+            const parsed = parseBigIntLike(maxPriceRaw);
             if (parsed === null || parsed < 0n) {
               addError(errors, fileLabel, `${domainName}.labels.maxPrice must be a non-negative integer`);
+            } else {
+              maxPriceValue = parsed;
             }
+          }
+
+          if (minPriceValue !== null && maxPriceValue !== null && maxPriceValue < minPriceValue) {
+            addError(
+              errors,
+              fileLabel,
+              `${domainName}.labels.maxPrice must be greater than or equal to minPrice`
+            );
           }
 
           if (entry.duration !== null && entry.duration !== undefined) {
