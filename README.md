@@ -52,6 +52,16 @@ Edit configuration files under `config/` to match the deployment environment:
 - Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
   guardrails before broadcasting migrations.
 
+### Alpha Club activation
+
+Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA`
+price floor automatically, so only funded registrations can mint these labels. Governance controls whether the `IdentityRegistry`
+marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages. Keep the flag `false`
+until the Alpha Club launch materials (for example, the dedicated registration flow) are ready, then execute
+`configureEns(alphaClubRootHash, /*alphaEnabled=*/true)` from the Safe to emit the activation event. Because ENS ownership checks
+already cover nested labels, existing alpha subdomains remain valid on-chain even before the flip; the toggle simply signals
+readiness to integrators and monitoring infrastructure.
+
 Sepolia deployments now read from their own configuration files, so populate `config/agialpha.sepolia.json` and
 `config/ens.sepolia.json` with the staging token and ENS registry addresses before migrating to that network.
 
@@ -155,6 +165,16 @@ npm run registrar:verify
 ```
 
 The verifier reads `config/registrar.<variant>.json` and checks that every configured ENS root is active on the registrar, has a live pricer, and quotes the expected ERC-20 payment token. When `minPrice` thresholds are defined for specific labels (for example `alpha.club.agi.eth` requiring 5,000 `$AGIALPHA`), the command fails if the registrar returns a lower amount. Use `NETWORK=mainnet npm run registrar:verify` to audit the production deployment prior to go-live.
+
+## Release checklist
+
+1. Run the full CI matrix locally (`npm run lint`, `npm run test`, `npm run coverage`, `npm run config:validate`) to catch
+   regressions before tagging.
+2. Export refreshed addresses/ABIs with `npm run export:artifacts` and publish them under `artifacts-public/` for integrators.
+3. Bump `package.json` and `CHANGELOG.md` to the next semantic version (for example, `v1.1.0` for the pause feature rollout) and
+   create a signed git tag once CI is green.
+4. Update `docs/mainnet-deployment-simulation.md` with live transaction hashes, Safe execution links, and the final
+   `alphaEnabled` state after the deployment or Alpha Club activation.
 
 ### GitHub Actions secrets
 

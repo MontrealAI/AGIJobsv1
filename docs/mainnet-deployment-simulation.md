@@ -48,6 +48,13 @@ pre-flight checklist before running against the live network.
    the same console session to confirm every pausable module reports
    `paused() === false` post-migration and rehearse the Safe/timelock steps for
    invoking (and later clearing) a pause if an emergency response is required.
+6. **Alpha Club activation plan.** Decide whether the production launch will
+   flip `alphaEnabled` to `true` via `IdentityRegistry.configureEns`. The
+   configuration JSON already embeds the `alphaClubRootHash`, so the Safe only
+   needs to pass the stored value when calling `configureEns(alphaClubRootHash,
+   true)`. Capture the decision, execution transaction hash, and post-action
+   `alphaEnabled()` result in this log once finalized so downstream integrators
+   know whether premium subdomains are live.
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
@@ -158,7 +165,11 @@ After ownership transfers to the governance Safe or timelock, run a dedicated pa
    ```
 
 2. **Rehearse the pause.** Stage a Safe (or timelock) transaction bundle targeting each module's `pause()` function. No broadcast is required during the simulation, but capture the calldata and signer thresholds so the incident bridge can execute the sequence without additional prep. Pausing halts new deposits, job lifecycle actions, and dispute callbacks while still allowing `StakeManager.withdraw` (worker initiated) and `StakeManager.emergencyRelease` (owner initiated) to run for controlled exits.
-3. **Document recovery.** Prepare the matching `unpause()` calls plus a checklist to re-run the `paused()` queries above. After an incident is mitigated, execute `unpause()` via the same governance owner and re-verify every module reports `false` before resuming normal operations.
+3. **Record user guidance.** Document the communication plan for alerting
+   workers about withdrawal options and the path for resuming operations once
+   the incident is resolved. Include links to the Safe transactions that toggle
+   pause state so auditors can trace the mitigation timeline.
+4. **Document recovery.** Prepare the matching `unpause()` calls plus a checklist to re-run the `paused()` queries above. After an incident is mitigated, execute `unpause()` via the same governance owner and re-verify every module reports `false` before resuming normal operations.
 
 Store the pause/unpause calldata alongside the deployment package so governance can trigger the response plan immediately if production conditions require it.
 
