@@ -58,6 +58,32 @@ pre-flight checklist before running against the live network.
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
+### Production deployment ledger
+
+Populate the tables below with concrete data immediately after the mainnet rollout. They provide the single reference point auditors and downstream integrators will consult for live wiring and administrative actions. Replace the placeholder rows once transactions have been executed.
+
+#### Core contract addresses
+
+| Contract | Address | Deployment transaction hash |
+| -------- | ------- | --------------------------- |
+| IdentityRegistry | `<pending>` | `<tx-hash>` |
+| StakeManager | `<pending>` | `<tx-hash>` |
+| JobRegistry | `<pending>` | `<tx-hash>` |
+| DisputeModule | `<pending>` | `<tx-hash>` |
+| ReputationEngine | `<pending>` | `<tx-hash>` |
+| FeePool | `<pending>` | `<tx-hash>` |
+| ValidationModule | `<pending>` | `<tx-hash>` |
+| CertificateNFT | `<pending>` | `<tx-hash>` |
+
+Copy values directly from `artifacts-public/addresses/mainnet.json` after the live migration and record the corresponding deploy transaction hashes for transparency.
+
+#### Governance and feature toggles
+
+| Timestamp (UTC) | Action | Hash / Safe execution link | Notes |
+| --------------- | ------ | -------------------------- | ----- |
+| `<pending>` | `configureEns(alphaClubRootHash, true)` | `<safe-transaction>` | Flip `alphaEnabled` when the Alpha Club launch is live. |
+| `<pending>` | `pause()` / `unpause()` drill | `<safe-transaction>` | Record rehearsal results or production incident response. |
+
 
 ## 1. Environment preparation
 

@@ -54,13 +54,17 @@ Edit configuration files under `config/` to match the deployment environment:
 
 ### Alpha Club activation
 
-Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA`
-price floor automatically, so only funded registrations can mint these labels. Governance controls whether the `IdentityRegistry`
-marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages. Keep the flag `false`
-until the Alpha Club launch materials (for example, the dedicated registration flow) are ready, then execute
-`configureEns(alphaClubRootHash, /*alphaEnabled=*/true)` from the Safe to emit the activation event. Because ENS ownership checks
-already cover nested labels, existing alpha subdomains remain valid on-chain even before the flip; the toggle simply signals
-readiness to integrators and monitoring infrastructure.
+Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.
+
+- **Before launch.** Keep `alphaEnabled === false` until the Alpha Club landing page and onboarding flow are live. During this staging window, avoid advertising the tier publicly—the registrar still blocks unfunded attempts and ENS ownership checks already cover nested labels, so the namespace remains technically usable without being "official." If governance wants to hard-block alpha identities before the announcement, extend `IdentityRegistry.isClubAddress` to reject `alpha` namehashes while the flag is `false`.
+- **Flip the switch.** When the program launches, execute `configureEns(alphaClubRootHash, /*alphaEnabled=*/true)` from the Safe. The call emits an event and updates `alphaEnabled()` so downstream relays, analytics, and subgraph indexers can record the activation moment. Capture the transaction hash and resulting state in `docs/mainnet-deployment-simulation.md` for posterity.
+- **Verify on-chain state.** Post-activation, confirm the registry reports the expected status:
+
+  ```javascript
+  IdentityRegistry.deployed().then(async (registry) => console.log(await registry.alphaEnabled()));
+  ```
+
+  The ENS ownership rule means `alice.alpha.club.agi.eth` already counts as a valid club identity when the label is owned by `alice`, but toggling the flag gives integrators an explicit signal that premium identities are supported.
 
 Sepolia deployments now read from their own configuration files, so populate `config/agialpha.sepolia.json` and
 `config/ens.sepolia.json` with the staging token and ENS registry addresses before migrating to that network.
@@ -199,7 +203,7 @@ The following owner-controlled modules expose `pause()` / `unpause()` guards:
 - `DisputeModule`
 - `ReputationEngine`
 
-Post-migration the governance Safe (or configured timelock) is the sole owner, so it is the only entity that can invoke these toggles. Pausing suspends new deposits, job lifecycle progression, and dispute hooks, but `StakeManager.withdraw` (worker-controlled) and `StakeManager.emergencyRelease` (governance-controlled) remain callable so stakers can exit while mitigations are prepared.
+Post-migration the governance Safe (or configured timelock) is the sole owner, so it is the only entity that can invoke these toggles. Pausing suspends new deposits, job lifecycle progression, and dispute hooks, but `StakeManager.withdraw` (worker-controlled) and `StakeManager.emergencyRelease` (governance-controlled) remain callable so stakers can exit while mitigations are prepared. Document the reason for any pause, the Safe execution links, and downstream communications in `docs/mainnet-deployment-simulation.md` immediately after taking action so auditors and incident responders have a single source of truth.
 
 ## Security
 
