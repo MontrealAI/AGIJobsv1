@@ -7,6 +7,11 @@ const AGI_MAINNET_TOKEN = '0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA';
 const AGI_MAINNET_BURN = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000';
 const ENS_MAINNET_REGISTRY = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
 const ENS_MAINNET_NAME_WRAPPER = '0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401';
+const CLUB_DOMAIN_NAME = 'club.agi.eth';
+const CLUB_ROOT_KEY = 'clubRootHash';
+const ALPHA_LABEL = 'alpha';
+const ALPHA_CLUB_PRICE_WEI = BigInt('5000000000000000000000'); // 5,000 AGIALPHA @ 18 decimals
+const ALPHA_CLUB_PRICE_HUMAN = '5,000 AGIALPHA';
 const HEX_32_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
 function readJson(filePath) {
@@ -95,12 +100,12 @@ function validateAgiAlphaConfig(errors, fileLabel, data, { variant }) {
   const token = data.token;
   if (variant === 'mainnet' || variant === 'sepolia') {
     validateAddress(errors, fileLabel, token, { field: 'token' });
-    if (variant === 'mainnet' && typeof token === 'string' && !equalsIgnoreCase(token, AGI_MAINNET_TOKEN)) {
-      addError(
-        errors,
-        fileLabel,
-        `token must equal ${AGI_MAINNET_TOKEN} for mainnet deployments`
-      );
+    if (
+      variant === 'mainnet' &&
+      typeof token === 'string' &&
+      !equalsIgnoreCase(token, AGI_MAINNET_TOKEN)
+    ) {
+      addError(errors, fileLabel, `token must equal ${AGI_MAINNET_TOKEN} for mainnet deployments`);
     }
   } else if (typeof token === 'string' && token.toLowerCase() !== 'mock') {
     validateAddress(errors, fileLabel, token, { field: 'token', allowZero: false });
@@ -117,9 +122,9 @@ function validateAgiAlphaConfig(errors, fileLabel, data, { variant }) {
   const burnAddress = data.burnAddress;
   validateAddress(errors, fileLabel, burnAddress, { field: 'burnAddress' });
   if (
-    typeof burnAddress === 'string'
-    && variant === 'mainnet'
-    && !equalsIgnoreCase(burnAddress, AGI_MAINNET_BURN)
+    typeof burnAddress === 'string' &&
+    variant === 'mainnet' &&
+    !equalsIgnoreCase(burnAddress, AGI_MAINNET_BURN)
   ) {
     addError(errors, fileLabel, `burnAddress must equal ${AGI_MAINNET_BURN} on mainnet`);
   }
@@ -266,7 +271,11 @@ function ensureDomainNode(errors, fileLabel, domain, ensKeys) {
 
   if (typeof domain.node === 'string') {
     if (!HEX_32_REGEX.test(domain.node)) {
-      addError(errors, fileLabel, `domain ${domain.name || '<unnamed>'} node must be a 32-byte hex string`);
+      addError(
+        errors,
+        fileLabel,
+        `domain ${domain.name || '<unnamed>'} node must be a 32-byte hex string`
+      );
       return null;
     }
     return domain.node;
@@ -347,7 +356,11 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
         field: `${domainName}.expectedToken`,
         allowZero: false,
       });
-      if (agiToken && isAddress(domain.expectedToken) && !equalsIgnoreCase(domain.expectedToken, agiToken)) {
+      if (
+        agiToken &&
+        isAddress(domain.expectedToken) &&
+        !equalsIgnoreCase(domain.expectedToken, agiToken)
+      ) {
         addError(
           errors,
           fileLabel,
@@ -375,7 +388,11 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
           }
 
           if (typeof entry.label !== 'string' || entry.label.trim().length === 0) {
-            addError(errors, fileLabel, `${domainName}.labels entries must include a non-empty label`);
+            addError(
+              errors,
+              fileLabel,
+              `${domainName}.labels entries must include a non-empty label`
+            );
           }
 
           const minPriceRaw = entry.minPrice;
@@ -404,7 +421,11 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
           if (minPriceRaw !== null && minPriceRaw !== undefined) {
             const parsed = parseBigIntLike(minPriceRaw);
             if (parsed === null || parsed < 0n) {
-              addError(errors, fileLabel, `${domainName}.labels.minPrice must be a non-negative integer`);
+              addError(
+                errors,
+                fileLabel,
+                `${domainName}.labels.minPrice must be a non-negative integer`
+              );
             } else {
               minPriceValue = parsed;
             }
@@ -413,7 +434,11 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
           if (maxPriceRaw !== null && maxPriceRaw !== undefined) {
             const parsed = parseBigIntLike(maxPriceRaw);
             if (parsed === null || parsed < 0n) {
-              addError(errors, fileLabel, `${domainName}.labels.maxPrice must be a non-negative integer`);
+              addError(
+                errors,
+                fileLabel,
+                `${domainName}.labels.maxPrice must be a non-negative integer`
+              );
             } else {
               maxPriceValue = parsed;
             }
@@ -430,13 +455,92 @@ function validateRegistrarConfig(errors, fileLabel, data, { variant, agiConfig }
           if (entry.duration !== null && entry.duration !== undefined) {
             const parsed = parseBigIntLike(entry.duration);
             if (parsed === null || parsed <= 0n) {
-              addError(errors, fileLabel, `${domainName}.labels.duration must be a positive integer`);
+              addError(
+                errors,
+                fileLabel,
+                `${domainName}.labels.duration must be a positive integer`
+              );
             }
           }
         });
       }
     }
   });
+
+  const requireAlphaPriceGuard = variant === 'mainnet';
+  enforceAlphaClubPrice(errors, fileLabel, domains, {
+    requireDomain: requireAlphaPriceGuard,
+    expectedPrice: ALPHA_CLUB_PRICE_WEI,
+  });
+}
+
+function enforceAlphaClubPrice(errors, fileLabel, domains, { requireDomain, expectedPrice }) {
+  if (!Array.isArray(domains)) {
+    return;
+  }
+
+  const clubDomain = domains.find((domain) => {
+    if (!domain || typeof domain !== 'object') {
+      return false;
+    }
+    const name = typeof domain.name === 'string' ? domain.name.trim().toLowerCase() : null;
+    if (name === CLUB_DOMAIN_NAME) {
+      return true;
+    }
+    const rootKey = typeof domain.rootKey === 'string' ? domain.rootKey.trim() : null;
+    return rootKey === CLUB_ROOT_KEY;
+  });
+
+  if (!clubDomain) {
+    if (requireDomain) {
+      addError(
+        errors,
+        fileLabel,
+        `must include a ${CLUB_DOMAIN_NAME} domain entry to enforce the Alpha Club price floor`
+      );
+    }
+    return;
+  }
+
+  const labels = Array.isArray(clubDomain.labels) ? clubDomain.labels : [];
+  const alphaEntry = labels.find((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return false;
+    }
+    const label = typeof entry.label === 'string' ? entry.label.trim().toLowerCase() : null;
+    return label === ALPHA_LABEL;
+  });
+
+  if (!alphaEntry) {
+    if (requireDomain) {
+      addError(
+        errors,
+        fileLabel,
+        `${CLUB_DOMAIN_NAME} must configure an "${ALPHA_LABEL}" label to enforce premium pricing`
+      );
+    }
+    return;
+  }
+
+  const minPrice = parseBigIntLike(alphaEntry.minPrice);
+  const maxPrice = parseBigIntLike(alphaEntry.maxPrice);
+
+  if (minPrice === null || maxPrice === null) {
+    addError(
+      errors,
+      fileLabel,
+      `${CLUB_DOMAIN_NAME} ${ALPHA_LABEL} label must set both minPrice and maxPrice to ${expectedPrice.toString()} wei (${ALPHA_CLUB_PRICE_HUMAN})`
+    );
+    return;
+  }
+
+  if (minPrice !== expectedPrice || maxPrice !== expectedPrice) {
+    addError(
+      errors,
+      fileLabel,
+      `${CLUB_DOMAIN_NAME} ${ALPHA_LABEL} label must set minPrice and maxPrice to ${expectedPrice.toString()} wei (${ALPHA_CLUB_PRICE_HUMAN})`
+    );
+  }
 }
 
 function validateParamsConfig(errors, fileLabel, data) {
@@ -479,14 +583,29 @@ function validateAllConfigs({ baseDir } = {}) {
   const errors = [];
 
   const variants = [
-    { name: 'dev', files: { agialpha: 'agialpha.dev.json', ens: 'ens.dev.json', registrar: 'registrar.dev.json' } },
+    {
+      name: 'dev',
+      files: {
+        agialpha: 'agialpha.dev.json',
+        ens: 'ens.dev.json',
+        registrar: 'registrar.dev.json',
+      },
+    },
     {
       name: 'mainnet',
-      files: { agialpha: 'agialpha.mainnet.json', ens: 'ens.mainnet.json', registrar: 'registrar.mainnet.json' },
+      files: {
+        agialpha: 'agialpha.mainnet.json',
+        ens: 'ens.mainnet.json',
+        registrar: 'registrar.mainnet.json',
+      },
     },
     {
       name: 'sepolia',
-      files: { agialpha: 'agialpha.sepolia.json', ens: 'ens.sepolia.json', registrar: 'registrar.sepolia.json' },
+      files: {
+        agialpha: 'agialpha.sepolia.json',
+        ens: 'ens.sepolia.json',
+        registrar: 'registrar.sepolia.json',
+      },
     },
   ];
 
@@ -521,7 +640,10 @@ function validateAllConfigs({ baseDir } = {}) {
 
   variants.forEach(({ name, files }) => {
     readAndValidate(files.registrar, (data) =>
-      validateRegistrarConfig(errors, files.registrar, data, { variant: name, agiConfig: agiConfigs[name] })
+      validateRegistrarConfig(errors, files.registrar, data, {
+        variant: name,
+        agiConfig: agiConfigs[name],
+      })
     );
   });
 
@@ -565,5 +687,6 @@ module.exports = {
     ensureInteger,
     validateAddress,
     ensureString,
+    enforceAlphaClubPrice,
   },
 };
