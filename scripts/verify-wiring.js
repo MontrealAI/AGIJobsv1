@@ -7,6 +7,8 @@ const ReputationEngine = artifacts.require('ReputationEngine');
 const FeePool = artifacts.require('FeePool');
 const CertificateNFT = artifacts.require('CertificateNFT');
 
+const { hash: computeNamehash, normalize: normalizeEnsName } = require('eth-ens-namehash');
+
 const params = require('../config/params.json');
 const { readConfig, resolveVariant } = require('./config-loader');
 
@@ -22,13 +24,66 @@ const NAME_WRAPPER_ABI = [
   },
 ];
 
+const ENS_REGISTRY_ABI = [
+  {
+    constant: true,
+    inputs: [{ name: 'node', type: 'bytes32' }],
+    name: 'owner',
+    outputs: [{ name: '', type: 'address' }],
+    payable: false,
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    constant: true,
+    inputs: [{ name: 'node', type: 'bytes32' }],
+    name: 'recordExists',
+    outputs: [{ name: '', type: 'bool' }],
+    payable: false,
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
+const ZERO_NAMEHASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
 const MAINNET_EXPECTATIONS = Object.freeze({
   agiToken: '0xA61a3B3a130a9c20768EEBF97E21515A6046a1fA',
   agiSymbol: 'AGIALPHA',
   agiName: 'AGI ALPHA AGENT',
   ensRegistry: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e',
   nameWrapper: '0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401',
+  agentRoot: 'agent.agi.eth',
+  agentRootHash: '0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d',
+  clubRoot: 'club.agi.eth',
+  clubRootHash: '0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16',
 });
+
+function ensureEnsName(value, label) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error(`${label} must be a string when specified`);
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${label} must not be empty when specified`);
+  }
+
+  try {
+    const normalized = normalizeEnsName(trimmed);
+    if (normalized !== trimmed) {
+      throw new Error(`${label} must be normalized; expected "${normalized}" but received "${value}"`);
+    }
+    return normalized;
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+    throw new Error(`Invalid ENS name for ${label}: ${message}`);
+  }
+}
 
 function extractNetwork(argv) {
   const networkFlagIndex = argv.findIndex((arg) => arg === '--network');
@@ -121,6 +176,14 @@ module.exports = async function (callback) {
     const ensCfg = readConfig('ens', networkName);
     const variant = resolveVariant(networkName);
     const isMainnet = variant === 'mainnet';
+    const hasEnsConfig = ensCfg && typeof ensCfg === 'object';
+
+    let normalizedAgentRootName = null;
+    let normalizedClubRootName = null;
+    if (hasEnsConfig) {
+      normalizedAgentRootName = ensureEnsName(ensCfg.agentRoot, 'config.ens.agentRoot');
+      normalizedClubRootName = ensureEnsName(ensCfg.clubRoot, 'config.ens.clubRoot');
+    }
 
     const jobRegistry = await JobRegistry.deployed();
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -179,6 +242,34 @@ module.exports = async function (callback) {
         throw new Error('config/ens.mainnet.json must define the ENS registry address');
       }
       expectEq(ensCfg.registry, MAINNET_EXPECTATIONS.ensRegistry, 'config.ens.registry (mainnet)');
+
+      if (!normalizedAgentRootName) {
+        throw new Error('config/ens.mainnet.json must define the agentRoot');
+      }
+      if (normalizedAgentRootName !== MAINNET_EXPECTATIONS.agentRoot) {
+        throw new Error(
+          `config.ens.agentRoot must equal ${MAINNET_EXPECTATIONS.agentRoot} on mainnet but was ${ensCfg.agentRoot}`
+        );
+      }
+
+      if (!ensCfg.agentRootHash) {
+        throw new Error('config/ens.mainnet.json must define the agentRootHash');
+      }
+      expectEq(ensCfg.agentRootHash, MAINNET_EXPECTATIONS.agentRootHash, 'config.ens.agentRootHash (mainnet)');
+
+      if (!normalizedClubRootName) {
+        throw new Error('config/ens.mainnet.json must define the clubRoot');
+      }
+      if (normalizedClubRootName !== MAINNET_EXPECTATIONS.clubRoot) {
+        throw new Error(
+          `config.ens.clubRoot must equal ${MAINNET_EXPECTATIONS.clubRoot} on mainnet but was ${ensCfg.clubRoot}`
+        );
+      }
+
+      if (!ensCfg.clubRootHash) {
+        throw new Error('config/ens.mainnet.json must define the clubRootHash');
+      }
+      expectEq(ensCfg.clubRootHash, MAINNET_EXPECTATIONS.clubRootHash, 'config.ens.clubRootHash (mainnet)');
 
       const wrapperAddress = normalizeString(ensCfg.nameWrapper);
       if (!wrapperAddress) {
@@ -317,12 +408,53 @@ module.exports = async function (callback) {
       }
     }
 
-    if (ensCfg) {
+    if (hasEnsConfig) {
       const onChainRegistry = await identity.ensRegistry();
       const onChainAgentHash = await identity.agentRootHash();
       const onChainClubHash = await identity.clubRootHash();
 
-      const hasConfiguredRoots = Boolean(ensCfg.agentRootHash && ensCfg.clubRootHash);
+      const configuredAgentHash = typeof ensCfg.agentRootHash === 'string' ? ensCfg.agentRootHash : null;
+      const configuredClubHash = typeof ensCfg.clubRootHash === 'string' ? ensCfg.clubRootHash : null;
+
+      let agentRootHashForChecks = configuredAgentHash;
+      if (normalizedAgentRootName) {
+        if (!configuredAgentHash) {
+          throw new Error('config.ens.agentRootHash must be set when config.ens.agentRoot is provided');
+        }
+        if (configuredAgentHash.toLowerCase() === ZERO_NAMEHASH) {
+          throw new Error('config.ens.agentRootHash must not be the zero namehash');
+        }
+        const derivedAgentHash = computeNamehash(normalizedAgentRootName);
+        expectEq(
+          configuredAgentHash,
+          derivedAgentHash,
+          'config.ens.agentRootHash matches namehash(config.ens.agentRoot)'
+        );
+        agentRootHashForChecks = derivedAgentHash;
+      } else if (configuredAgentHash) {
+        throw new Error('config.ens.agentRoot must be specified when config.ens.agentRootHash is set');
+      }
+
+      let clubRootHashForChecks = configuredClubHash;
+      if (normalizedClubRootName) {
+        if (!configuredClubHash) {
+          throw new Error('config.ens.clubRootHash must be set when config.ens.clubRoot is provided');
+        }
+        if (configuredClubHash.toLowerCase() === ZERO_NAMEHASH) {
+          throw new Error('config.ens.clubRootHash must not be the zero namehash');
+        }
+        const derivedClubHash = computeNamehash(normalizedClubRootName);
+        expectEq(
+          configuredClubHash,
+          derivedClubHash,
+          'config.ens.clubRootHash matches namehash(config.ens.clubRoot)'
+        );
+        clubRootHashForChecks = derivedClubHash;
+      } else if (configuredClubHash) {
+        throw new Error('config.ens.clubRoot must be specified when config.ens.clubRootHash is set');
+      }
+
+      const hasConfiguredRoots = Boolean(agentRootHashForChecks && clubRootHashForChecks);
 
       if (ensCfg.registry && hasConfiguredRoots) {
         expectEq(onChainRegistry, ensCfg.registry, 'identity.ensRegistry');
@@ -330,12 +462,12 @@ module.exports = async function (callback) {
         expectEq(onChainRegistry, ensCfg.registry, 'identity.ensRegistry');
       }
 
-      if (ensCfg.agentRootHash) {
-        expectEq(onChainAgentHash, ensCfg.agentRootHash, 'identity.agentRootHash');
+      if (agentRootHashForChecks) {
+        expectEq(onChainAgentHash, agentRootHashForChecks, 'identity.agentRootHash');
       }
 
-      if (ensCfg.clubRootHash) {
-        expectEq(onChainClubHash, ensCfg.clubRootHash, 'identity.clubRootHash');
+      if (clubRootHashForChecks) {
+        expectEq(onChainClubHash, clubRootHashForChecks, 'identity.clubRootHash');
       }
 
       const wrapperAddress = normalizeString(ensCfg.nameWrapper);
@@ -350,6 +482,38 @@ module.exports = async function (callback) {
           const wrapperRegistry = await nameWrapperContract.methods.ens().call();
           if (ensCfg.registry) {
             expectEq(wrapperRegistry, ensCfg.registry, 'nameWrapper.ens');
+          }
+
+          if (ensCfg.registry && ensCfg.registry.toLowerCase() !== ZERO_ADDRESS) {
+            const registryContract = new web3.eth.Contract(ENS_REGISTRY_ABI, ensCfg.registry);
+            const nodesToCheck = [
+              ['agent root', agentRootHashForChecks, normalizedAgentRootName],
+              ['club root', clubRootHashForChecks, normalizedClubRootName],
+            ].filter(([, nodeHash]) => Boolean(nodeHash));
+
+            await Promise.all(
+              nodesToCheck.map(async ([label, nodeHash, humanName]) => {
+                const [owner, exists] = await Promise.all([
+                  registryContract.methods.owner(nodeHash).call(),
+                  registryContract.methods
+                    .recordExists(nodeHash)
+                    .call()
+                    .catch(() => null),
+                ]);
+
+                if (!owner || owner.toLowerCase() === ZERO_ADDRESS) {
+                  const descriptor = humanName || nodeHash;
+                  throw new Error(`ENS registry owner for ${label} ${descriptor} is unset`);
+                }
+
+                expectEq(owner, wrapperAddress, `ENS NameWrapper must own the ${label}`);
+
+                if (exists === false) {
+                  const descriptor = humanName || nodeHash;
+                  throw new Error(`ENS registry reports no record for ${label} ${descriptor}`);
+                }
+              })
+            );
           }
         } catch (error) {
           const message = error && error.message ? error.message : String(error);
