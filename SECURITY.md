@@ -16,3 +16,9 @@ All Solidity smart contracts, deployment scripts, and configuration files within
 4. Release patched versions and document mitigations.
 
 We appreciate responsible disclosure and do not offer bug bounties at this time.
+
+## Operational response expectations
+
+- **Emergency pause.** Only the governance Safe (or configured timelock) can invoke the pausable module guards. When a pause is triggered, capture the Safe execution link, describe the motivating incident, and update `docs/mainnet-deployment-simulation.md` so stakeholders can audit the chronology. Workers retain access to `StakeManager.withdraw` during a pause, and governance can invoke `StakeManager.emergencyRelease` to facilitate controlled exits.
+- **Alpha Club activation.** Flipping `IdentityRegistry.configureEns(..., /*alphaEnabled=*/true)` marks premium `alpha.club.agi.eth` labels as officially supported. Record the transaction hash and resulting registry state in the deployment log immediately so integrators can confirm the tier is live.
+- **Post-incident recovery.** After unpausing or modifying ENS configuration, rerun the wiring checks (`npm run wire:verify`) and export refreshed artifacts with `npm run export:artifacts` to keep public ABIs/addresses in sync with production.
