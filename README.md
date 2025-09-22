@@ -139,6 +139,10 @@ Edit configuration files under `config/` to match the deployment environment:
 - `npx hardhat identity-registry:set-config --network <network> --execute --from 0xOwner` aligns the ENS wiring with
   repository defaults and overrides, writes optional Safe-ready JSON plans via `--plan-out`, enforces owner checks before
   broadcasting, and emits a dry-run transaction summary when `--execute` is omitted.
+- `npx hardhat identity-registry:emergency-status --network <network> --addresses '["0x..."]'` reports whether the provided
+  addresses currently hold emergency privileges, while `npx hardhat identity-registry:set-emergency --network <network>
+  --allow '0x...,0x...' --plan-out ./plan.json` produces a Safe-ready sequence of `setEmergencyAccess` calls that can be
+  executed with `--execute --from 0xOwner` once reviewed.
 
 ### IdentityRegistry ENS console
 
@@ -150,6 +154,16 @@ Edit configuration files under `config/` to match the deployment environment:
   multisig or custom signing flow before toggling `--execute`.
 - CLI overrides accept ENS names (`--ens.agentRoot`) or pre-computed hashes (`--ens.agentRootHash`), making it simple to
   flip `alphaEnabled` with the correct root hash without editing JSON by hand.
+
+### IdentityRegistry emergency console
+
+- `npm run identity:emergency -- --network <network> status --check 0xEmergency --file ./emergency.txt` lists the emergency
+  privileges for inline and file-driven address lists. The helper accepts JSON arrays or newline-separated files so operators
+  can review allow lists maintained outside of source control.
+- `npm run identity:emergency -- --network <network> set --allow 0xEmergency --revoke 0xFormer --plan-out ./plan.json`
+  generates a Safe-ready JSON summary for the queued `setEmergencyAccess` calls; add `--execute --from 0xOwner` to broadcast
+  after confirming the plan. The console validates inputs, prints checksum-formatted addresses, and logs every transaction hash
+  when executing multiple steps sequentially.
 
 ### Alpha Club activation
 
