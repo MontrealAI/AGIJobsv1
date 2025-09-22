@@ -98,6 +98,16 @@ Edit configuration files under `config/` to match the deployment environment:
 - `extend`, `finalize`, `timeout`, and `resolve` commands enforce the same invariants as the contracts (quorum bounds,
   slashing ceilings, lifecycle states) so non-technical operators receive human-readable error messages before risking gas.
 
+### JobRegistry owner wizard
+
+- Run `npm run owner:wizard -- --network <network>` for an interactive checklist that prints the current JobRegistry
+  wiring, proposes defaults, and steps owners through each action with inline validation.
+- Pass `--plan-out ./job-owner-plan.json` to write a Safe-ready payload on dry runs or `--yes --no-interactive` to re-use
+  scripted defaults during automations. The wizard accepts the same action flags as the console (for example,
+  `--action finalize --job 42 --success false`) and defaults to dry-run mode until `--execute` is supplied.
+- The prompt also verifies sender ownership before broadcasting and emits a JSON summary of every dry run so non-technical
+  operators can forward calldata without parsing console output.
+
 ### IdentityRegistry ENS console
 
 - Run `npm run identity:console -- --network <network> status` for a snapshot of the on-chain ENS wiring, including

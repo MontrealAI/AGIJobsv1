@@ -27,6 +27,7 @@
     "registrar:verify": "npx truffle exec scripts/verify-registrar.js --network ${NETWORK:-development}",
     "configure:registry": "npx truffle exec scripts/configure-job-registry.js --network ${NETWORK:-development}",
     "owner:console": "npx truffle exec scripts/job-registry-owner-console.js --network ${NETWORK:-development}",
+    "owner:wizard": "npx truffle exec scripts/job-registry-owner-wizard.js --network ${NETWORK:-development}",
     "namehash": "node scripts/compute-namehash.js",
     "namehash:dev": "node scripts/compute-namehash.js dev",
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",

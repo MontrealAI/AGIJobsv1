@@ -545,6 +545,7 @@ module.exports = {
   JOB_STATE_NAMES,
   BPS_DENOMINATOR,
   parseOwnerConsoleArgs,
+  parseBooleanFlag,
   collectOwnerStatus,
   buildOwnerTxPlan,
   formatStatusLines,
