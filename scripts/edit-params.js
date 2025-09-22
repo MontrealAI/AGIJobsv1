@@ -74,6 +74,7 @@ function parseArgs(argv) {
     yes: false,
     help: false,
     interactive: null,
+    backup: false,
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -114,19 +115,60 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (current === '--backup') {
+      const next = argv[i + 1];
+      if (next && !next.startsWith('--')) {
+        args.backup = normalizeBackupOption(next);
+        i += 1;
+      } else {
+        args.backup = true;
+      }
+      continue;
+    }
+
+    if (current === '--no-backup') {
+      args.backup = false;
+      continue;
+    }
+
+    if (current.startsWith('--backup=')) {
+      const assignment = current.slice('--backup='.length);
+      args.backup = normalizeBackupOption(assignment);
+      continue;
+    }
+
     if (current.startsWith('--set')) {
-      const [, valuePart] = current.split('=');
-      let assignment = valuePart;
-      if (!assignment) {
+      let assignment;
+      if (current === '--set') {
         const next = argv[i + 1];
         if (!next || next.startsWith('--')) {
           throw new Error('--set requires key=value');
         }
         assignment = next;
         i += 1;
+      } else {
+        const eqIndex = current.indexOf('=');
+        if (eqIndex === -1) {
+          throw new Error('--set requires key=value');
+        }
+        assignment = current.slice(eqIndex + 1);
+        if (!assignment) {
+          const next = argv[i + 1];
+          if (!next || next.startsWith('--')) {
+            throw new Error('--set requires key=value');
+          }
+          assignment = next;
+          i += 1;
+        }
       }
 
-      const [key, value] = assignment.split('=');
+      const separatorIndex = assignment.indexOf('=');
+      if (separatorIndex === -1) {
+        throw new Error(`Invalid --set assignment "${assignment}". Expected key=value.`);
+      }
+
+      const key = assignment.slice(0, separatorIndex).trim();
+      const value = assignment.slice(separatorIndex + 1).trim();
       if (!key || value === undefined) {
         throw new Error(`Invalid --set assignment "${assignment}". Expected key=value.`);
       }
@@ -140,6 +182,32 @@ function parseArgs(argv) {
   return args;
 }
 
+function normalizeBackupOption(rawValue) {
+  if (rawValue === null || rawValue === undefined) {
+    return true;
+  }
+
+  if (rawValue === true || rawValue === false) {
+    return rawValue;
+  }
+
+  const trimmed = String(rawValue).trim();
+  if (trimmed.length === 0) {
+    return true;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'n', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return path.resolve(trimmed);
+}
+
 function printHelp() {
   console.log('AGIJobsv1 — params editor');
   console.log('Usage: node scripts/edit-params.js [options]');
@@ -151,6 +219,8 @@ function printHelp() {
   console.log('  --yes                 Skip the confirmation prompt and accept changes');
   console.log('  --interactive         Force interactive prompts even when using --set');
   console.log('  --no-interactive      Disable prompts; only apply explicit --set overrides');
+  console.log('  --backup[=<path>]     Save a backup before writing (optional custom path)');
+  console.log('  --no-backup           Skip creating a backup even if --backup was provided');
   console.log('  --help                Display this help message');
 }
 
@@ -310,6 +380,54 @@ function formatSummary(previous, next) {
   return lines.join('\n');
 }
 
+function ensureParentDirectory(targetPath, { fsModule = fs } = {}) {
+  const directory = path.dirname(targetPath);
+  if (!fsModule.existsSync(directory)) {
+    fsModule.mkdirSync(directory, { recursive: true });
+  }
+}
+
+function resolveBackupPath(filePath, backupOption, { now = new Date() } = {}) {
+  if (!backupOption) {
+    return null;
+  }
+
+  if (typeof backupOption === 'string') {
+    return path.resolve(backupOption);
+  }
+
+  if (backupOption === true) {
+    const timestamp = now.toISOString().replace(/[:.]/g, '-');
+    const parsed = path.parse(path.resolve(filePath));
+    const backupName = `${parsed.base}.${timestamp}.bak`;
+    return path.join(parsed.dir, backupName);
+  }
+
+  return null;
+}
+
+function persistParams({
+  filePath,
+  nextValues,
+  backupOption,
+  fsModule = fs,
+  now = new Date(),
+}) {
+  const serialized = `${JSON.stringify(nextValues, null, 2)}\n`;
+  const backupPath = resolveBackupPath(filePath, backupOption, { now });
+  if (backupPath) {
+    const resolvedTarget = path.resolve(filePath);
+    const resolvedBackup = path.resolve(backupPath);
+    if (resolvedTarget === resolvedBackup) {
+      throw new Error('Backup path must differ from target file');
+    }
+    ensureParentDirectory(backupPath, { fsModule });
+    fsModule.copyFileSync(filePath, backupPath);
+  }
+  fsModule.writeFileSync(filePath, serialized, 'utf8');
+  return { backupPath };
+}
+
 async function confirm(message) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
@@ -368,12 +486,39 @@ async function main() {
     }
   }
 
-  const serialized = `${JSON.stringify(nextValues, null, 2)}\n`;
-  fs.writeFileSync(args.file, serialized, 'utf8');
+  const { backupPath } = persistParams({
+    filePath: args.file,
+    nextValues,
+    backupOption: args.backup,
+  });
+  if (backupPath) {
+    console.log(`Created backup at ${backupPath}`);
+  }
   console.log(`Saved parameters to ${args.file}`);
 }
 
-main().catch((error) => {
-  console.error(`Error: ${error.message}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`Error: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  parseArgs,
+  normalizeBackupOption,
+  printHelp,
+  loadParams,
+  coerceNumber,
+  validateParams,
+  promptUser,
+  collectParams,
+  formatSummary,
+  confirm,
+  ensureParentDirectory,
+  resolveBackupPath,
+  persistParams,
+  PARAM_DEFINITIONS,
+  DEFAULT_PARAMS_PATH,
+  main,
+};

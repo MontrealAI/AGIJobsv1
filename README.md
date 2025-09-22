@@ -53,8 +53,10 @@ Edit configuration files under `config/` to match the deployment environment:
   `mainnet`).
 - `config/params.json` — Commit/reveal/dispute windows and governance thresholds. Run
   `npm run config:params` for an interactive editor that validates ranges, highlights
-  changes, and writes the updated JSON back to disk. Non-interactive environments can
-  provide explicit overrides via `npm run config:params -- --no-interactive --set feeBps=300 --yes`.
+  changes, and writes the updated JSON back to disk. Add `--backup` to create a timestamped
+  copy of the existing file automatically, or provide an explicit destination via
+  `--backup ./path/to/params.backup.json`. Non-interactive environments can provide
+  explicit overrides via `npm run config:params -- --no-interactive --set feeBps=300 --yes`.
 - Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
   guardrails before broadcasting migrations.
 
