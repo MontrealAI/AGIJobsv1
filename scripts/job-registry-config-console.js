@@ -16,6 +16,11 @@ const {
   normalizeModuleStruct,
   normalizeNumericStruct,
 } = require('./lib/job-registry-config-utils');
+const {
+  buildSetPlanSummary,
+  buildUpdatePlanSummary,
+  writePlanSummary,
+} = require('./lib/job-registry-plan-writer');
 const { resolveModuleDefaults } = require('./lib/job-registry-config-defaults');
 const { resolveVariant } = require('./config-loader');
 const { TIMING_KEYS, THRESHOLD_KEYS } = require('./lib/job-registry-configurator');
@@ -171,6 +176,7 @@ module.exports = async function (callback) {
     }
 
     const shouldExecute = Boolean(options.execute);
+    const planOutputPath = options.planOutPath || null;
     if (owner && owner.toLowerCase() !== sender.toLowerCase()) {
       console.warn(
         `Warning: sender ${sender} is not the JobRegistry owner (${owner}). Transactions may revert unless forwarded through the owner.`
@@ -238,8 +244,23 @@ module.exports = async function (callback) {
         });
       }
 
+      if (planOutputPath) {
+        const planSummary = buildSetPlanSummary({
+          jobRegistry,
+          jobRegistryAddress,
+          sender,
+          plans,
+          configuration,
+          variant: resolvedVariant,
+          dryRun: !shouldExecute,
+        });
+        const writtenPath = writePlanSummary(planSummary, planOutputPath);
+        console.log(`Plan summary written to ${writtenPath}`);
+        console.log('');
+      }
+
       if (actions.length === 0) {
-        console.log('\nAll sections already match the desired configuration.');
+        console.log('All sections already match the desired configuration.');
         callback();
         return;
       }
@@ -283,6 +304,21 @@ module.exports = async function (callback) {
       );
 
       const callData = jobRegistry.contract.methods[plan.method](...plan.args).encodeABI();
+
+      if (planOutputPath) {
+        const planSummary = buildUpdatePlanSummary({
+          jobRegistry,
+          jobRegistryAddress,
+          sender,
+          plan,
+          configuration,
+          variant: resolvedVariant,
+          dryRun: !shouldExecute,
+        });
+        const writtenPath = writePlanSummary(planSummary, planOutputPath);
+        console.log(`Plan summary written to ${writtenPath}`);
+        console.log('');
+      }
 
       if (!shouldExecute) {
         console.log('Dry run: transaction not broadcast.');

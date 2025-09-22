@@ -37,6 +37,7 @@ function createDefaultArgs() {
     from: null,
     paramsPath: null,
     variant: null,
+    planOutPath: null,
     help: false,
     modules: cloneKeys(MODULE_KEYS),
     timings: cloneKeys(TIMING_KEYS),
@@ -109,6 +110,14 @@ function parseConfiguratorArgs(argv) {
 
     if (key === 'variant') {
       args.variant = value;
+      continue;
+    }
+
+    if (key === 'plan-out') {
+      if (!value || value === 'true' || value === 'false') {
+        throw new Error('--plan-out requires a file path argument');
+      }
+      args.planOutPath = value;
       continue;
     }
 
