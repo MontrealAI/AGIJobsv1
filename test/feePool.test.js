@@ -24,6 +24,34 @@ contract('FeePool', (accounts) => {
     );
   });
 
+  it('allows the owner to update the registry assignment', async function () {
+    await expectRevert(
+      this.pool.updateJobRegistry(registry, { from: owner }),
+      'FeePool: registry unset'
+    );
+
+    await this.pool.setJobRegistry(registry, { from: owner });
+
+    await expectRevert(
+      this.pool.updateJobRegistry(stranger, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.pool.updateJobRegistry(constants.ZERO_ADDRESS, { from: owner }),
+      'FeePool: registry'
+    );
+
+    await expectRevert(
+      this.pool.updateJobRegistry(registry, { from: owner }),
+      'FeePool: registry unchanged'
+    );
+
+    const receipt = await this.pool.updateJobRegistry(stranger, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: stranger });
+    assert.strictEqual(await this.pool.jobRegistry(), stranger);
+  });
+
   it('requires non-zero constructor arguments', async function () {
     await expectRevert(FeePool.new(constants.ZERO_ADDRESS, burnAddress, { from: owner }), 'FeePool: token');
     await expectRevert(FeePool.new(this.token.address, constants.ZERO_ADDRESS, { from: owner }), 'FeePool: burn');

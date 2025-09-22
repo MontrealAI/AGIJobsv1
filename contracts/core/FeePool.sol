@@ -38,6 +38,17 @@ contract FeePool is Ownable {
         emit JobRegistryUpdated(registry);
     }
 
+    /// @notice Reassigns the authorized registry. Enables controlled migrations.
+    /// @param registry Address of the new registry contract.
+    function updateJobRegistry(address registry) external onlyOwner {
+        require(registry != address(0), "FeePool: registry");
+        address current = jobRegistry;
+        require(current != address(0), "FeePool: registry unset");
+        require(current != registry, "FeePool: registry unchanged");
+        jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
+    }
+
     modifier onlyAuthorized() {
         require(msg.sender == owner() || msg.sender == jobRegistry, "FeePool: not authorized");
         _;

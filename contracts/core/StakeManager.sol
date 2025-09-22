@@ -51,6 +51,17 @@ contract StakeManager is Pausable, ReentrancyGuard {
         emit JobRegistryUpdated(registry);
     }
 
+    /// @notice Updates the job registry when governance migrates to a new deployment.
+    /// @param registry Address of the replacement registry contract.
+    function updateJobRegistry(address registry) external onlyOwner whenPaused {
+        require(registry != address(0), "StakeManager: zero registry");
+        address current = jobRegistry;
+        require(current != address(0), "StakeManager: registry unset");
+        require(current != registry, "StakeManager: registry unchanged");
+        jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
+    }
+
     /// @notice Sets the address that receives slashed stake.
     /// @param recipient Destination that will receive slashed stake proceeds.
     function setFeeRecipient(address recipient) external onlyOwner {
