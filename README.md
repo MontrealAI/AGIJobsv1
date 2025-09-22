@@ -51,7 +51,10 @@ Edit configuration files under `config/` to match the deployment environment:
 - `config/ens.dev.json` / `config/ens.sepolia.json` / `config/ens.mainnet.json` — ENS registry and subdomain roots (refresh
   `npm run namehash -- <variant>` or `node scripts/compute-namehash.js <path-to-config>`; the variant command defaults to
   `mainnet`).
-- `config/params.json` — Commit/reveal/dispute windows and governance thresholds.
+- `config/params.json` — Commit/reveal/dispute windows and governance thresholds. Run
+  `npm run config:params` for an interactive editor that validates ranges, highlights
+  changes, and writes the updated JSON back to disk. Non-interactive environments can
+  provide explicit overrides via `npm run config:params -- --no-interactive --set feeBps=300 --yes`.
 - Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
   guardrails before broadcasting migrations.
 
@@ -61,6 +64,7 @@ Edit configuration files under `config/` to match the deployment environment:
 
   timings, and governance thresholds against the repository defaults. The summary highlights any drift and prints the sender,
   owner, and params profile so operators can confirm the context before acting.
+
 - Pass `-- --execute --from 0xYourOwnerAddress` to broadcast updates from an authorized account. The helper automatically
   repopulates missing module addresses from local deployments, applies overrides provided via CLI flags (for example,
   `--modules.identity` or `--thresholds.feeBps`), and validates all numerical constraints before submitting transactions.
