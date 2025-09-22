@@ -38,6 +38,44 @@ contract('StakeManager', (accounts) => {
     );
   });
 
+  it('allows the owner to migrate the job registry while paused', async function () {
+    await this.manager.pause({ from: owner });
+    await expectRevert(
+      this.manager.updateJobRegistry(other, { from: owner }),
+      'StakeManager: registry unset'
+    );
+    await this.manager.unpause({ from: owner });
+
+    await this.manager.setJobRegistry(registry, { from: owner });
+
+    await expectRevert(
+      this.manager.updateJobRegistry(other, { from: registry }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.manager.updateJobRegistry(other, { from: owner }),
+      'Pausable: not paused'
+    );
+
+    await this.manager.pause({ from: owner });
+
+    await expectRevert(
+      this.manager.updateJobRegistry(constants.ZERO_ADDRESS, { from: owner }),
+      'StakeManager: zero registry'
+    );
+
+    await expectRevert(
+      this.manager.updateJobRegistry(registry, { from: owner }),
+      'StakeManager: registry unchanged'
+    );
+
+    const receipt = await this.manager.updateJobRegistry(other, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: other });
+    assert.strictEqual(await this.manager.jobRegistry(), other);
+    await this.manager.unpause({ from: owner });
+  });
+
   it('handles deposits and withdrawals with proper checks', async function () {
     await expectRevert(this.manager.deposit('0', { from: staker }), 'StakeManager: amount');
     await expectRevert(this.manager.deposit('1000', { from: staker }), 'StakeManager: allowance');
