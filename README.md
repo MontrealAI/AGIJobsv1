@@ -72,11 +72,15 @@ Edit configuration files under `config/` to match the deployment environment:
   `--modules.identity` or `--thresholds.feeBps`), and validates all numerical constraints before submitting transactions.
 - Override the default configuration profile with `-- --params /path/to/params.json` when staging alternate environments, or
   use `-- --variant sepolia` to label the summary with the intended target network.
+- Add `-- --plan-out ./job-registry-plan.json` to any run to export a Safe-ready transaction summary with ABI payloads, diffs,
+  and metadata that owners can forward to non-technical operators before signing.
 
 ### JobRegistry configuration console
 
 - Call `npm run config:console -- --network <network> status` for a concise snapshot of module wiring, lifecycle timings, and threshold values along with the configuration completeness flags.
 - Switch to `set` to align on-chain values with repository defaults or explicit overrides using the same flags accepted by `configure:registry`; dry runs print the planned diffs and `-- --execute` broadcasts `setModules`, `setTimings`, and `setThresholds` transactions sequentially.
+- Combine `-- --plan-out <file>` with dry runs or live executions to persist the full transaction plan for review, including
+  encoded calldata for multisig submission and the sender/context metadata printed in the console output.
 - Use the `update` action with a single `--modules.<key>`, `--timings.<key>`, or `--thresholds.<key>` flag to invoke the granular update functions. The console validates invariants, emits a Safe-ready transaction payload during dry runs, and refuses zero-address or misordered quorum updates before touching the chain.
 
 ### JobRegistry owner console

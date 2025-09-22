@@ -36,6 +36,8 @@ describe('job-registry-config-console library', () => {
       '--from',
       '0x1234567890abcdef1234567890abcdef12345678',
       '--execute=false',
+      '--plan-out',
+      'plan.json',
       '--timings.commitWindow',
       '7200',
       'update',
@@ -46,6 +48,7 @@ describe('job-registry-config-console library', () => {
     expect(parsed.from).to.equal('0x1234567890abcdef1234567890abcdef12345678');
     expect(parsed.execute).to.be.false;
     expect(parsed.timings.commitWindow).to.equal('7200');
+    expect(parsed.planOutPath).to.equal('plan.json');
   });
 
   it('builds set plans using overrides and defaults', () => {
