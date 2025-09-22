@@ -6,9 +6,18 @@ const readline = require('readline');
 
 const DEFAULT_PARAMS_PATH = path.join(__dirname, '..', 'config', 'params.json');
 
+const DURATION_UNITS = {
+  s: 1,
+  m: 60,
+  h: 60 * 60,
+  d: 60 * 60 * 24,
+  w: 60 * 60 * 24 * 7,
+};
+
 const PARAM_DEFINITIONS = [
   {
     key: 'commitWindow',
+    kind: 'durationSeconds',
     label: 'Commit window (seconds)',
     description: 'Time allowed for workers to commit job results before revealing.',
     minimum: 60,
@@ -16,6 +25,7 @@ const PARAM_DEFINITIONS = [
   },
   {
     key: 'revealWindow',
+    kind: 'durationSeconds',
     label: 'Reveal window (seconds)',
     description:
       'Duration for workers to reveal commitments. Should be shorter than the commit window.',
@@ -24,6 +34,7 @@ const PARAM_DEFINITIONS = [
   },
   {
     key: 'disputeWindow',
+    kind: 'durationSeconds',
     label: 'Dispute window (seconds)',
     description: 'Period during which disputes can be raised after reveal.',
     minimum: 60,
@@ -31,6 +42,7 @@ const PARAM_DEFINITIONS = [
   },
   {
     key: 'approvalThresholdBps',
+    kind: 'basisPoints',
     label: 'Approval threshold (basis points)',
     description: 'Percentage of approvals required (out of 10,000).',
     minimum: 0,
@@ -52,6 +64,7 @@ const PARAM_DEFINITIONS = [
   },
   {
     key: 'feeBps',
+    kind: 'basisPoints',
     label: 'Protocol fee (basis points)',
     description: 'Fee retained by the protocol per job (out of 10,000).',
     minimum: 0,
@@ -59,12 +72,17 @@ const PARAM_DEFINITIONS = [
   },
   {
     key: 'slashBpsMax',
+    kind: 'basisPoints',
     label: 'Maximum slash (basis points)',
     description: 'Maximum percentage of stake that can be slashed per dispute.',
     minimum: 0,
     maximum: 10000,
   },
 ];
+
+function findParamDefinition(key) {
+  return PARAM_DEFINITIONS.find((entry) => entry.key === key) || null;
+}
 
 function parseArgs(argv) {
   const args = {
@@ -222,6 +240,10 @@ function printHelp() {
   console.log('  --backup[=<path>]     Save a backup before writing (optional custom path)');
   console.log('  --no-backup           Skip creating a backup even if --backup was provided');
   console.log('  --help                Display this help message');
+  console.log('');
+  console.log('Notes:');
+  console.log('  • Duration fields accept shorthand like "15m", "2h30m", or raw seconds.');
+  console.log('  • Basis point fields accept integers or percentages such as "2.5%".');
 }
 
 function loadParams(filePath) {
@@ -239,7 +261,80 @@ function loadParams(filePath) {
   }
 }
 
-function coerceNumber(value, key) {
+function stripNumericFormatting(raw) {
+  return String(raw)
+    .replace(/[_\s]+/g, '')
+    .trim();
+}
+
+function parseDuration(rawValue, key) {
+  const normalized = stripNumericFormatting(rawValue).toLowerCase();
+  if (normalized === '') {
+    throw new Error(`Invalid duration for ${key}: ${rawValue}`);
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const seconds = Number(normalized);
+    if (!Number.isFinite(seconds)) {
+      throw new Error(`Invalid numeric duration for ${key}: ${rawValue}`);
+    }
+    if (seconds <= 0) {
+      throw new Error(`Duration for ${key} must be positive.`);
+    }
+    return Math.round(seconds);
+  }
+
+  const pattern = /(\d+(?:\.\d+)?)([smhdw])/g;
+  let match;
+  let totalSeconds = 0;
+  let matchedLength = 0;
+
+  while ((match = pattern.exec(normalized)) !== null) {
+    const [, magnitude, unit] = match;
+    const multiplier = DURATION_UNITS[unit];
+    if (!multiplier) {
+      throw new Error(`Unsupported duration unit "${unit}" for ${key}.`);
+    }
+    matchedLength += match[0].length;
+    totalSeconds += Number(magnitude) * multiplier;
+  }
+
+  if (matchedLength !== normalized.length || !Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    throw new Error(
+      `Invalid duration for ${key}: ${rawValue}. Use forms like "3600", "15m", or "1h30m".`
+    );
+  }
+
+  const rounded = Math.round(totalSeconds);
+  if (rounded <= 0) {
+    throw new Error(`Duration for ${key} must be positive.`);
+  }
+
+  return rounded;
+}
+
+function parseBasisPoints(rawValue, key) {
+  const normalized = stripNumericFormatting(rawValue);
+  if (normalized === '') {
+    throw new Error(`Invalid basis points value for ${key}: ${rawValue}`);
+  }
+
+  if (normalized.endsWith('%')) {
+    const percentageValue = Number(normalized.slice(0, -1));
+    if (!Number.isFinite(percentageValue)) {
+      throw new Error(`Invalid percentage for ${key}: ${rawValue}`);
+    }
+    return Math.round(percentageValue * 100);
+  }
+
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    throw new Error(`Invalid basis points value for ${key}: ${rawValue}`);
+  }
+  return numeric;
+}
+
+function coerceNumber(value, key, definition = findParamDefinition(key)) {
   if (value === '' || value === null || value === undefined) {
     return undefined;
   }
@@ -249,11 +344,19 @@ function coerceNumber(value, key) {
   }
 
   if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value.trim());
-    if (!Number.isFinite(parsed)) {
+    if (definition && definition.kind === 'durationSeconds') {
+      return parseDuration(value, key);
+    }
+
+    if (definition && definition.kind === 'basisPoints') {
+      return parseBasisPoints(value, key);
+    }
+
+    const numeric = Number(stripNumericFormatting(value));
+    if (!Number.isFinite(numeric)) {
       throw new Error(`Invalid numeric value for ${key}: ${value}`);
     }
-    return parsed;
+    return numeric;
   }
 
   throw new Error(`Invalid value for ${key}: ${value}`);
@@ -300,6 +403,17 @@ function validateParams(candidate) {
     errors.push('quorumMin must be less than or equal to quorumMax.');
   }
 
+  const { commitWindow, revealWindow } = candidate;
+  if (
+    typeof commitWindow === 'number' &&
+    typeof revealWindow === 'number' &&
+    Number.isFinite(commitWindow) &&
+    Number.isFinite(revealWindow) &&
+    revealWindow >= commitWindow
+  ) {
+    errors.push('revealWindow must be strictly less than commitWindow.');
+  }
+
   const { approvalThresholdBps } = candidate;
   if (typeof approvalThresholdBps === 'number' && Number.isFinite(approvalThresholdBps)) {
     const quorumFloor = quorumMin || 0;
@@ -312,12 +426,19 @@ function validateParams(candidate) {
 }
 
 async function promptUser(definition, currentValue, rl) {
+  const formattedCurrentValue = formatValue(definition, currentValue);
   const questionParts = [
     `${definition.label}`,
-    `Current value: ${currentValue}`,
+    `Current value: ${formattedCurrentValue}`,
     definition.description ? definition.description : null,
     definition.minimum !== null ? `Minimum: ${definition.minimum}` : null,
     definition.maximum !== null ? `Maximum: ${definition.maximum}` : null,
+    definition.kind === 'durationSeconds'
+      ? 'Tip: Accepts seconds or shorthand like 15m, 2h30m.'
+      : null,
+    definition.kind === 'basisPoints'
+      ? 'Tip: Accepts basis points or percentages (e.g. 2.5%).'
+      : null,
   ].filter(Boolean);
 
   const prompt = `${questionParts.join('\n')}\n> `;
@@ -332,18 +453,18 @@ async function promptUser(definition, currentValue, rl) {
     return currentValue;
   }
 
-  return coerceNumber(answer, definition.key);
+  return coerceNumber(answer, definition.key, definition);
 }
 
 async function collectParams(baseValues, overrides, interactive) {
   const nextValues = { ...baseValues };
 
   Object.entries(overrides).forEach(([key, rawValue]) => {
-    const definition = PARAM_DEFINITIONS.find((entry) => entry.key === key);
+    const definition = findParamDefinition(key);
     if (!definition) {
       throw new Error(`Unknown parameter in --set: ${key}`);
     }
-    nextValues[key] = coerceNumber(rawValue, key);
+    nextValues[key] = coerceNumber(rawValue, key, definition);
   });
 
   if (!interactive) {
@@ -368,14 +489,77 @@ async function collectParams(baseValues, overrides, interactive) {
   return nextValues;
 }
 
+function formatDuration(seconds) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
+    return String(seconds);
+  }
+
+  let remaining = Math.max(0, Math.round(seconds));
+  const units = [
+    { label: 'w', value: DURATION_UNITS.w },
+    { label: 'd', value: DURATION_UNITS.d },
+    { label: 'h', value: DURATION_UNITS.h },
+    { label: 'm', value: DURATION_UNITS.m },
+    { label: 's', value: DURATION_UNITS.s },
+  ];
+
+  const parts = [];
+  for (const unit of units) {
+    if (remaining >= unit.value) {
+      const count = Math.floor(remaining / unit.value);
+      if (count > 0) {
+        parts.push(`${count}${unit.label}`);
+        remaining -= count * unit.value;
+      }
+    }
+  }
+
+  if (parts.length === 0) {
+    return '0s';
+  }
+
+  return parts.join(' ');
+}
+
+function formatBasisPoints(bps) {
+  if (typeof bps !== 'number' || !Number.isFinite(bps)) {
+    return String(bps);
+  }
+
+  const percentage = bps / 100;
+  const formattedPercentage = percentage
+    .toFixed(2)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d)0$/, '$1');
+  return `${bps} bps (${formattedPercentage}%)`;
+}
+
+function formatValue(definition, value) {
+  if (value === undefined || value === null) {
+    return '—';
+  }
+
+  if (definition && definition.kind === 'durationSeconds') {
+    return `${value} (${formatDuration(value)})`;
+  }
+
+  if (definition && definition.kind === 'basisPoints') {
+    return formatBasisPoints(value);
+  }
+
+  return String(value);
+}
+
 function formatSummary(previous, next) {
   const lines = [];
   PARAM_DEFINITIONS.forEach((definition) => {
     const before = previous[definition.key];
     const after = next[definition.key];
+    const formattedBefore = formatValue(definition, before);
+    const formattedAfter = formatValue(definition, after);
     const changed = before !== after;
     const indicator = changed ? '•' : ' ';
-    lines.push(`${indicator} ${definition.key}: ${before} → ${after}`);
+    lines.push(`${indicator} ${definition.key}: ${formattedBefore} → ${formattedAfter}`);
   });
   return lines.join('\n');
 }
@@ -406,13 +590,7 @@ function resolveBackupPath(filePath, backupOption, { now = new Date() } = {}) {
   return null;
 }
 
-function persistParams({
-  filePath,
-  nextValues,
-  backupOption,
-  fsModule = fs,
-  now = new Date(),
-}) {
+function persistParams({ filePath, nextValues, backupOption, fsModule = fs, now = new Date() }) {
   const serialized = `${JSON.stringify(nextValues, null, 2)}\n`;
   const backupPath = resolveBackupPath(filePath, backupOption, { now });
   if (backupPath) {
@@ -509,10 +687,17 @@ module.exports = {
   normalizeBackupOption,
   printHelp,
   loadParams,
+  findParamDefinition,
+  stripNumericFormatting,
+  parseDuration,
+  parseBasisPoints,
   coerceNumber,
   validateParams,
   promptUser,
   collectParams,
+  formatDuration,
+  formatBasisPoints,
+  formatValue,
   formatSummary,
   confirm,
   ensureParentDirectory,

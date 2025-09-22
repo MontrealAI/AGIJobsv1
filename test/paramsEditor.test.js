@@ -7,7 +7,13 @@ const { execFileSync } = require('child_process');
 const {
   parseArgs,
   resolveBackupPath,
+  coerceNumber,
+  validateParams,
+  findParamDefinition,
+  formatSummary,
 } = require('../scripts/edit-params');
+
+const defaultParams = require('../config/params.json');
 
 function createTempDir(prefix) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -83,5 +89,43 @@ describe('params editor CLI', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it('supports human-friendly overrides and formatting helpers', () => {
+    const commitDef = findParamDefinition('commitWindow');
+    const feeDef = findParamDefinition('feeBps');
+    const quorumDef = findParamDefinition('quorumMax');
+
+    expect(coerceNumber('2h30m', 'commitWindow', commitDef)).to.equal(9000);
+    expect(coerceNumber('90m', 'commitWindow', commitDef)).to.equal(5400);
+    expect(coerceNumber('2.5%', 'feeBps', feeDef)).to.equal(250);
+    expect(coerceNumber('1_000', 'quorumMax', quorumDef)).to.equal(1000);
+
+    const updatedParams = {
+      ...defaultParams,
+      commitWindow: coerceNumber('8h', 'commitWindow', commitDef),
+      revealWindow: coerceNumber('2h', 'revealWindow', findParamDefinition('revealWindow')),
+      feeBps: coerceNumber('3%', 'feeBps', feeDef),
+    };
+
+    const errors = validateParams(updatedParams);
+    expect(errors).to.deep.equal([]);
+
+    const summary = formatSummary(defaultParams, updatedParams);
+    expect(summary).to.include('commitWindow: 604800 (1w)');
+    expect(summary).to.include('→ 28800 (8h)');
+    expect(summary).to.include('feeBps: 250 bps (2.5%) → 300 bps (3%)');
+  });
+
+  it('rejects invalid temporal relationships during validation', () => {
+    const candidate = {
+      ...defaultParams,
+      commitWindow: 3600,
+      revealWindow: 3600,
+      disputeWindow: 600,
+    };
+
+    const errors = validateParams(candidate);
+    expect(errors).to.deep.include('revealWindow must be strictly less than commitWindow.');
   });
 });
