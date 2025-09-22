@@ -86,6 +86,17 @@ Edit configuration files under `config/` to match the deployment environment:
 - `extend`, `finalize`, `timeout`, and `resolve` commands enforce the same invariants as the contracts (quorum bounds,
   slashing ceilings, lifecycle states) so non-technical operators receive human-readable error messages before risking gas.
 
+### IdentityRegistry ENS console
+
+- Run `npm run identity:console -- --network <network> status` for a snapshot of the on-chain ENS wiring, including
+  registry and wrapper addresses, root hashes, and the `alphaEnabled` flag.
+- Use the `set` action to align the on-chain configuration with repository defaults from `config/ens.<variant>.json` and
+  any CLI overrides, for example `npm run identity:console -- --network mainnet set --execute --ens.alphaEnabled true`.
+- Dry runs print the Safe-ready payload (`to`, `data`, and argument list) so owners can forward transactions through a
+  multisig or custom signing flow before toggling `--execute`.
+- CLI overrides accept ENS names (`--ens.agentRoot`) or pre-computed hashes (`--ens.agentRootHash`), making it simple to
+  flip `alphaEnabled` with the correct root hash without editing JSON by hand.
+
 ### Alpha Club activation
 
 Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.
