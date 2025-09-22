@@ -16,6 +16,29 @@ contract JobRegistry is Pausable, ReentrancyGuard {
 
     enum JobState { None, Created, Committed, Revealed, Finalized, Disputed }
 
+    enum ModuleKey {
+        Identity,
+        Staking,
+        Validation,
+        Dispute,
+        Reputation,
+        FeePool
+    }
+
+    enum TimingKey {
+        CommitWindow,
+        RevealWindow,
+        DisputeWindow
+    }
+
+    enum ThresholdKey {
+        ApprovalThresholdBps,
+        QuorumMin,
+        QuorumMax,
+        FeeBps,
+        SlashBpsMax
+    }
+
     struct Modules {
         address identity;
         address staking;
@@ -122,6 +145,33 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         emit ModulesUpdated(newModules);
     }
 
+    /// @notice Updates an individual module address without re-specifying the full struct.
+    /// @param key Identifier of the module to update.
+    /// @param newAddress Address of the replacement module implementation.
+    function updateModule(ModuleKey key, address newAddress) external onlyOwner {
+        require(newAddress != address(0), "JobRegistry: module address");
+
+        Modules memory updated = _modules;
+        if (key == ModuleKey.Identity) {
+            updated.identity = newAddress;
+        } else if (key == ModuleKey.Staking) {
+            updated.staking = newAddress;
+        } else if (key == ModuleKey.Validation) {
+            updated.validation = newAddress;
+        } else if (key == ModuleKey.Dispute) {
+            updated.dispute = newAddress;
+        } else if (key == ModuleKey.Reputation) {
+            updated.reputation = newAddress;
+        } else if (key == ModuleKey.FeePool) {
+            updated.feePool = newAddress;
+        } else {
+            revert("JobRegistry: module key");
+        }
+
+        _modules = updated;
+        emit ModulesUpdated(updated);
+    }
+
     /// @notice Configures the commit, reveal, and dispute windows.
     /// @param commitWindow Duration of the commit phase in seconds.
     /// @param revealWindow Duration of the reveal phase in seconds.
@@ -131,6 +181,28 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         timings = Timings(commitWindow, revealWindow, disputeWindow);
         _timingsConfigured = true;
         emit TimingsUpdated(timings);
+    }
+
+    /// @notice Updates a single lifecycle timing parameter while preserving others.
+    /// @param key Identifier of the timing parameter to update.
+    /// @param newValue New duration in seconds for the selected timing window.
+    function updateTiming(TimingKey key, uint256 newValue) external onlyOwner {
+        require(newValue > 0, "JobRegistry: timings");
+
+        Timings memory updated = timings;
+        if (key == TimingKey.CommitWindow) {
+            updated.commitWindow = newValue;
+        } else if (key == TimingKey.RevealWindow) {
+            updated.revealWindow = newValue;
+        } else if (key == TimingKey.DisputeWindow) {
+            updated.disputeWindow = newValue;
+        } else {
+            revert("JobRegistry: timing key");
+        }
+
+        timings = updated;
+        _timingsConfigured = updated.commitWindow > 0 && updated.revealWindow > 0 && updated.disputeWindow > 0;
+        emit TimingsUpdated(updated);
     }
 
     /// @notice Sets economic thresholds for job validation and slashing.
@@ -160,6 +232,38 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         });
         _thresholdsConfigured = true;
         emit ThresholdsUpdated(thresholds);
+    }
+
+    /// @notice Updates a single economic threshold with invariant enforcement.
+    /// @param key Identifier of the threshold to update.
+    /// @param newValue Replacement value for the selected threshold.
+    function updateThreshold(ThresholdKey key, uint256 newValue) external onlyOwner {
+        if (!_thresholdsConfigured) {
+            revert NotConfigured(THRESHOLDS_KEY);
+        }
+
+        Thresholds memory updated = thresholds;
+        if (key == ThresholdKey.ApprovalThresholdBps) {
+            require(newValue <= BPS_DENOMINATOR, "JobRegistry: approval bps");
+            updated.approvalThresholdBps = newValue;
+        } else if (key == ThresholdKey.QuorumMin) {
+            require(newValue > 0, "JobRegistry: quorum");
+            updated.quorumMin = newValue;
+        } else if (key == ThresholdKey.QuorumMax) {
+            updated.quorumMax = newValue;
+        } else if (key == ThresholdKey.FeeBps) {
+            require(newValue <= BPS_DENOMINATOR, "JobRegistry: fee bps");
+            updated.feeBps = newValue;
+        } else if (key == ThresholdKey.SlashBpsMax) {
+            require(newValue <= BPS_DENOMINATOR, "JobRegistry: slash bps");
+            updated.slashBpsMax = newValue;
+        } else {
+            revert("JobRegistry: threshold key");
+        }
+
+        require(updated.quorumMin > 0 && updated.quorumMax >= updated.quorumMin, "JobRegistry: quorum");
+        thresholds = updated;
+        emit ThresholdsUpdated(updated);
     }
 
     /// @notice Creates a new job and reserves stake for the workflow.
@@ -313,7 +417,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         _requireState(job.state, JobState.Committed);
 
         if (block.timestamp <= job.disputeDeadline) {
-            revert("JobRegistry: dispute window active");
+            revert("JobRegistry: dispute active");
         }
 
         uint256 stakeAmount = job.stakeAmount;

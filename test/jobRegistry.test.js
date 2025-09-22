@@ -52,6 +52,29 @@ const JOB_STATES = {
   Disputed: 5,
 };
 
+const MODULE_KEYS = {
+  Identity: 0,
+  Staking: 1,
+  Validation: 2,
+  Dispute: 3,
+  Reputation: 4,
+  FeePool: 5,
+};
+
+const TIMING_KEYS = {
+  CommitWindow: 0,
+  RevealWindow: 1,
+  DisputeWindow: 2,
+};
+
+const THRESHOLD_KEYS = {
+  ApprovalThresholdBps: 0,
+  QuorumMin: 1,
+  QuorumMax: 2,
+  FeeBps: 3,
+  SlashBpsMax: 4,
+};
+
 function stripQuotes(value) {
   if (
     value.length >= 2 &&
@@ -647,6 +670,97 @@ contract('JobRegistry', (accounts) => {
     );
   });
 
+  it('allows the owner to update modules individually', async function () {
+    const replacement = await IdentityRegistry.new({ from: deployer });
+    await this.jobRegistry.updateModule(MODULE_KEYS.Identity, replacement.address, { from: deployer });
+
+    const modules = await this.jobRegistry.modules();
+    assert.strictEqual(modules.identity, replacement.address);
+    assert.strictEqual(modules.staking, this.stakeManager.address);
+    assert.strictEqual(modules.validation, this.validation.address);
+    assert.strictEqual(modules.dispute, this.dispute.address);
+    assert.strictEqual(modules.reputation, this.reputation.address);
+    assert.strictEqual(modules.feePool, this.feePool.address);
+  });
+
+  it('rejects unauthorized module updates', async function () {
+    const replacement = await IdentityRegistry.new({ from: deployer });
+    await expectRevert(
+      this.jobRegistry.updateModule(MODULE_KEYS.Identity, replacement.address, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('updates lifecycle timings granularly', async function () {
+    await this.jobRegistry.updateTiming(TIMING_KEYS.CommitWindow, 7200, { from: deployer });
+
+    const timings = await this.jobRegistry.timings();
+    assert.strictEqual(timings.commitWindow.toNumber(), 7200);
+    assert.strictEqual(timings.revealWindow.toNumber(), 3600);
+    assert.strictEqual(timings.disputeWindow.toNumber(), 7200);
+
+    const status = await this.jobRegistry.configurationStatus();
+    assert.isTrue(status.timingsConfigured);
+  });
+
+  it('enforces validation on timing updates', async function () {
+    await expectRevert(
+      this.jobRegistry.updateTiming(TIMING_KEYS.CommitWindow, 0, { from: deployer }),
+      'JobRegistry: timings'
+    );
+
+    await expectRevert(
+      this.jobRegistry.updateTiming(TIMING_KEYS.CommitWindow, 7200, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('supports granular threshold updates with invariant checks', async function () {
+    await this.jobRegistry.updateThreshold(THRESHOLD_KEYS.FeeBps, 300, { from: deployer });
+    await this.jobRegistry.updateThreshold(THRESHOLD_KEYS.QuorumMax, 9, { from: deployer });
+
+    const thresholds = await this.jobRegistry.thresholds();
+    assert.strictEqual(thresholds.feeBps.toNumber(), 300);
+    assert.strictEqual(thresholds.quorumMin.toNumber(), 1);
+    assert.strictEqual(thresholds.quorumMax.toNumber(), 9);
+  });
+
+  it('blocks invalid threshold updates and unauthorized access', async function () {
+    await expectRevert(
+      this.jobRegistry.updateThreshold(THRESHOLD_KEYS.QuorumMin, 12, { from: deployer }),
+      'JobRegistry: quorum'
+    );
+
+    await expectRevert(
+      this.jobRegistry.updateThreshold(THRESHOLD_KEYS.QuorumMax, 0, { from: deployer }),
+      'JobRegistry: quorum'
+    );
+
+    await expectRevert(
+      this.jobRegistry.updateThreshold(THRESHOLD_KEYS.FeeBps, 20000, { from: deployer }),
+      'JobRegistry: fee bps'
+    );
+
+    await expectRevert(
+      this.jobRegistry.updateThreshold(THRESHOLD_KEYS.SlashBpsMax, 20000, { from: deployer }),
+      'JobRegistry: slash bps'
+    );
+
+    await expectRevert(
+      this.jobRegistry.updateThreshold(THRESHOLD_KEYS.FeeBps, 300, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('requires thresholds to be initialized before granular updates', async function () {
+    const freshRegistry = await JobRegistry.new({ from: deployer });
+
+    await expectCustomError(
+      freshRegistry.updateThreshold(THRESHOLD_KEYS.FeeBps, 300, { from: deployer }),
+      'JobRegistry.NotConfigured("thresholds")'
+    );
+  });
+
   it('validates lifecycle error paths', async function () {
     await expectRevert(
       this.jobRegistry.createJob('0', { from: client }),
@@ -784,7 +898,7 @@ contract('JobRegistry', (accounts) => {
 
     await expectRevert(
       this.jobRegistry.timeoutJob(jobId, 0, { from: deployer }),
-      'JobRegistry: dispute window active'
+      'JobRegistry: dispute active'
     );
 
     const committedJob = await this.jobRegistry.jobs(jobId);
