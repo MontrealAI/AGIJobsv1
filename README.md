@@ -83,6 +83,12 @@ Edit configuration files under `config/` to match the deployment environment:
   encoded calldata for multisig submission and the sender/context metadata printed in the console output.
 - Use the `update` action with a single `--modules.<key>`, `--timings.<key>`, or `--thresholds.<key>` flag to invoke the granular update functions. The console validates invariants, emits a Safe-ready transaction payload during dry runs, and refuses zero-address or misordered quorum updates before touching the chain.
 
+### JobRegistry configuration wizard
+
+- Launch `npm run config:wizard -- --network <network>` for an interactive walkthrough tailored to non-technical operators. The wizard prints the current JobRegistry configuration, suggests defaults from local deployments and `config/params.json`, accepts `default` at any prompt to reuse those values, validates every override, and emits a Safe-ready JSON summary.
+- Provide `--execute` to broadcast the generated plan after a confirmation prompt, or `--plan-out ./path/to/plan.json` during a dry run to persist calldata for multisig execution.
+- Prefill overrides via the same `--modules.<key>`, `--timings.<key>`, and `--thresholds.<key>` flags accepted by the configuration console when scripting or operating in non-interactive environments.
+
 ### JobRegistry owner console
 
 - Launch the guided owner workflow with `npm run owner:console -- --network <network> status` to inspect configuration or
