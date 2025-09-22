@@ -32,12 +32,18 @@ jobs:
               *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
             esac
 
+            if ! command -v jq >/dev/null 2>&1; then
+              sudo apt-get install -y jq
+            fi
+
             tmpdir=$(mktemp -d)
-            asset_url=$(curl -fsSL https://api.github.com/repos/crytic/echidna/releases/latest \
-              | grep browser_download_url \
-              | grep "$asset_arch" \
-              | head -n 1 \
-              | cut -d '"' -f 4)
+            curl_args=(-fsSL "-H" "Accept: application/vnd.github+json" "-H" "X-GitHub-Api-Version: 2022-11-28")
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              curl_args+=("-H" "Authorization: Bearer ${GITHUB_TOKEN}")
+            fi
+            asset_url=$(curl "${curl_args[@]}" https://api.github.com/repos/crytic/echidna/releases/latest \
+              | jq -r --arg arch "$asset_arch" '.assets[] | select(.browser_download_url | contains($arch)) | .browser_download_url' \
+              | head -n 1)
             if [ -z "$asset_url" ]; then
               echo "Unable to locate Echidna release asset for $asset_arch" >&2
               exit 1
@@ -85,12 +91,18 @@ jobs:
               *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
             esac
 
+            if ! command -v jq >/dev/null 2>&1; then
+              sudo apt-get install -y jq
+            fi
+
             tmpdir=$(mktemp -d)
-            asset_url=$(curl -fsSL https://api.github.com/repos/crytic/echidna/releases/latest \
-              | grep browser_download_url \
-              | grep "$asset_arch" \
-              | head -n 1 \
-              | cut -d '"' -f 4)
+            curl_args=(-fsSL "-H" "Accept: application/vnd.github+json" "-H" "X-GitHub-Api-Version: 2022-11-28")
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              curl_args+=("-H" "Authorization: Bearer ${GITHUB_TOKEN}")
+            fi
+            asset_url=$(curl "${curl_args[@]}" https://api.github.com/repos/crytic/echidna/releases/latest \
+              | jq -r --arg arch "$asset_arch" '.assets[] | select(.browser_download_url | contains($arch)) | .browser_download_url' \
+              | head -n 1)
             if [ -z "$asset_url" ]; then
               echo "Unable to locate Echidna release asset for $asset_arch" >&2
               exit 1
