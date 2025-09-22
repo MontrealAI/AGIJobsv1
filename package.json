@@ -32,7 +32,8 @@
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
     "config:validate": "node scripts/validate-config.js",
     "prepare": "husky install",
-    "hardhat:test": "node scripts/run-tests.js"
+    "hardhat:test": "node scripts/run-tests.js",
+    "config:console": "npx truffle exec scripts/job-registry-config-console.js --network ${NETWORK:-development}"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.3",

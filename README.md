@@ -58,6 +58,7 @@ Edit configuration files under `config/` to match the deployment environment:
 ### JobRegistry configuration helper
 
 - Execute `npm run configure:registry` for a non-destructive dry run that compares the on-chain JobRegistry wiring, lifecycle
+
   timings, and governance thresholds against the repository defaults. The summary highlights any drift and prints the sender,
   owner, and params profile so operators can confirm the context before acting.
 - Pass `-- --execute --from 0xYourOwnerAddress` to broadcast updates from an authorized account. The helper automatically
@@ -65,6 +66,12 @@ Edit configuration files under `config/` to match the deployment environment:
   `--modules.identity` or `--thresholds.feeBps`), and validates all numerical constraints before submitting transactions.
 - Override the default configuration profile with `-- --params /path/to/params.json` when staging alternate environments, or
   use `-- --variant sepolia` to label the summary with the intended target network.
+
+### JobRegistry configuration console
+
+- Call `npm run config:console -- --network <network> status` for a concise snapshot of module wiring, lifecycle timings, and threshold values along with the configuration completeness flags.
+- Switch to `set` to align on-chain values with repository defaults or explicit overrides using the same flags accepted by `configure:registry`; dry runs print the planned diffs and `-- --execute` broadcasts `setModules`, `setTimings`, and `setThresholds` transactions sequentially.
+- Use the `update` action with a single `--modules.<key>`, `--timings.<key>`, or `--thresholds.<key>` flag to invoke the granular update functions. The console validates invariants, emits a Safe-ready transaction payload during dry runs, and refuses zero-address or misordered quorum updates before touching the chain.
 
 ### JobRegistry owner console
 

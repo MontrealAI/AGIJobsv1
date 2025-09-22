@@ -1,163 +1,24 @@
-const fs = require('fs');
-const path = require('path');
-
 const JobRegistry = artifacts.require('JobRegistry');
-const IdentityRegistry = artifacts.require('IdentityRegistry');
-const StakeManager = artifacts.require('StakeManager');
-const ValidationModule = artifacts.require('ValidationModule');
-const DisputeModule = artifacts.require('DisputeModule');
-const ReputationEngine = artifacts.require('ReputationEngine');
-const FeePool = artifacts.require('FeePool');
 
 const {
   parseConfiguratorArgs,
   computeModulesPlan,
   computeTimingsPlan,
   computeThresholdsPlan,
-  MODULE_KEYS,
   TIMING_KEYS,
   THRESHOLD_KEYS,
 } = require('./lib/job-registry-configurator');
 const { resolveVariant } = require('./config-loader');
-
-const MODULE_ARTIFACTS = {
-  identity: IdentityRegistry,
-  staking: StakeManager,
-  validation: ValidationModule,
-  dispute: DisputeModule,
-  reputation: ReputationEngine,
-  feePool: FeePool,
-};
-
-function extractNetwork(argv) {
-  for (let i = 2; i < argv.length; i++) {
-    const arg = argv[i];
-    if (typeof arg !== 'string' || !arg.startsWith('--')) {
-      continue;
-    }
-
-    const trimmed = arg.slice(2);
-    if (trimmed === 'network') {
-      const next = argv[i + 1];
-      if (next && typeof next === 'string' && !next.startsWith('--')) {
-        return next;
-      }
-    } else if (trimmed.startsWith('network=')) {
-      return trimmed.slice('network='.length);
-    }
-  }
-
-  return undefined;
-}
-
-function loadParamsConfig(paramsPath) {
-  const resolvedPath = paramsPath
-    ? path.resolve(paramsPath)
-    : path.join(__dirname, '..', 'config', 'params.json');
-
-  const raw = fs.readFileSync(resolvedPath, 'utf8');
-  const parsed = JSON.parse(raw);
-  return { path: resolvedPath, values: parsed };
-}
-
-function toChecksum(address) {
-  if (!address) {
-    return null;
-  }
-
-  try {
-    return web3.utils.toChecksumAddress(address);
-  } catch (error) {
-    return address;
-  }
-}
-
-function formatAddress(address) {
-  const checksum = toChecksum(address);
-  return checksum ? checksum : '(unset)';
-}
-
-function formatDiffEntry(previous, next, formatter = (value) => value) {
-  const prevFormatted =
-    previous === null || previous === undefined ? '(unset)' : formatter(previous);
-  const nextFormatted = formatter(next);
-  return `${prevFormatted} -> ${nextFormatted}`;
-}
-
-async function resolveModuleDefaults(overrides) {
-  const defaults = {};
-
-  for (const key of MODULE_KEYS) {
-    if (overrides[key] !== undefined && overrides[key] !== null) {
-      continue;
-    }
-
-    const artifact = MODULE_ARTIFACTS[key];
-    if (!artifact) {
-      continue;
-    }
-
-    try {
-      const instance = await artifact.deployed();
-      defaults[key] = instance.address;
-    } catch (error) {
-      throw new Error(
-        `Unable to determine default deployment for modules.${key}. Provide an explicit override with --modules.${key}.`
-      );
-    }
-  }
-
-  return defaults;
-}
-
-function normalizeModuleStruct(struct) {
-  const normalized = {};
-  MODULE_KEYS.forEach((key, index) => {
-    let value = struct[key];
-    if (value === undefined) {
-      value = struct[index];
-    }
-    if (value === undefined || value === null || value === '') {
-      normalized[key] = null;
-    } else {
-      normalized[key] = String(value);
-    }
-  });
-  return normalized;
-}
-
-function normalizeNumericStruct(struct, keys) {
-  const normalized = {};
-  keys.forEach((key, index) => {
-    let value = struct[key];
-    if (value === undefined) {
-      value = struct[index];
-    }
-
-    if (value === undefined || value === null) {
-      normalized[key] = null;
-      return;
-    }
-
-    if (typeof value === 'number') {
-      normalized[key] = value;
-      return;
-    }
-
-    if (typeof value.toNumber === 'function') {
-      normalized[key] = value.toNumber();
-      return;
-    }
-
-    if (typeof value.toString === 'function') {
-      normalized[key] = Number(value.toString());
-      return;
-    }
-
-    normalized[key] = Number(value);
-  });
-  return normalized;
-}
+const {
+  extractNetwork,
+  loadParamsConfig,
+  toChecksum,
+  formatAddress,
+  formatDiffEntry,
+  normalizeModuleStruct,
+  normalizeNumericStruct,
+} = require('./lib/job-registry-config-utils');
+const { resolveModuleDefaults } = require('./lib/job-registry-config-defaults');
 
 function printSectionDiff(label, diff, formatter) {
   const entries = Object.entries(diff);
