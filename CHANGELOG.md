@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
   overrides, plan exports, and owner enforcement.
 - Hardhat `identity-registry:status` and `identity-registry:set-config` tasks so ENS owners can audit and update wiring without
   leaving the Hardhat workflow.
+- IdentityRegistry emergency access console (`npm run identity:emergency`) with Safe-ready planning, checksum validation, and
+  sequential broadcast support for multi-step updates.
+- Hardhat emergency management tasks (`identity-registry:emergency-status` / `identity-registry:set-emergency`) that surface
+  allow-list drift, generate multisig payloads, and enforce owner-only execution before broadcasting.
 
 ## [1.1.0] - 2025-02-21
 

@@ -11,8 +11,19 @@ const {
   formatPlanLines,
   collectCurrentConfig,
 } = require('../scripts/lib/identity-registry-console');
+const {
+  resolveCheckAddresses,
+  resolveModificationEntries,
+  formatStatusLines: formatEmergencyStatusLines,
+  formatPlanLines: formatEmergencyPlanLines,
+  collectEmergencyStatus,
+  buildEmergencyPlanEntries,
+  enrichPlanEntriesWithCalldata,
+  buildPlanSummary: buildEmergencyPlanSummary,
+  writePlanSummary: writeEmergencyPlanSummary,
+} = require('../scripts/lib/identity-registry-emergency');
 const { resolveVariant } = require('../scripts/config-loader');
-const { toChecksum } = require('../scripts/lib/job-registry-config-utils');
+const { toChecksum, formatAddress } = require('../scripts/lib/job-registry-config-utils');
 const { serializeForJson } = require('../scripts/lib/json-utils');
 
 async function resolveIdentity(hre, explicitAddress) {
@@ -242,4 +253,132 @@ task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration w
 
     const receipt = await identity.configureEns(...plan.args, { from: sender });
     console.log(`\nTransaction broadcast. Hash: ${receipt.tx}`);
+  });
+
+task('identity-registry:emergency-status', 'Inspect IdentityRegistry emergency allow list entries')
+  .addOptionalParam('identity', 'IdentityRegistry contract address', undefined, types.string)
+  .addOptionalParam('address', 'Single address to inspect', undefined, types.string)
+  .addOptionalParam('addresses', 'JSON array of addresses to inspect', undefined, types.json)
+  .addOptionalParam('file', 'Path to JSON or newline-separated file of addresses', undefined, types.string)
+  .setAction(async (args, hre) => {
+    const identity = await resolveIdentity(hre, args.identity);
+    const identityAddress = toChecksum(identity.address);
+    const owner = toChecksum(await identity.owner());
+
+    const inline = [];
+    if (args.address) {
+      inline.push(args.address);
+    }
+    if (args.addresses) {
+      inline.push(args.addresses);
+    }
+
+    const addresses = resolveCheckAddresses({ inline, filePath: args.file });
+    const statusEntries = await collectEmergencyStatus(identity, addresses);
+    const networkName = hre.network && hre.network.name ? hre.network.name : '(unspecified)';
+
+    console.log('AGIJobsv1 — IdentityRegistry Hardhat emergency console');
+    console.log('Action: emergency-status');
+    console.log(`Network: ${networkName}`);
+    console.log(`IdentityRegistry: ${identityAddress}`);
+    console.log(`Owner: ${owner || '(unknown)'}`);
+    console.log('');
+
+    formatEmergencyStatusLines(statusEntries).forEach((line) => console.log(line));
+  });
+
+task('identity-registry:set-emergency', 'Grant or revoke emergency access through the IdentityRegistry owner controls')
+  .addOptionalParam('identity', 'IdentityRegistry contract address', undefined, types.string)
+  .addOptionalParam('from', 'Sender address (defaults to first unlocked account)', undefined, types.string)
+  .addOptionalParam('allow', 'Comma-separated addresses to allow', undefined, types.string)
+  .addOptionalParam('allowAddresses', 'JSON array of addresses to allow', undefined, types.json)
+  .addOptionalParam('revoke', 'Comma-separated addresses to revoke', undefined, types.string)
+  .addOptionalParam('revokeAddresses', 'JSON array of addresses to revoke', undefined, types.json)
+  .addOptionalParam('batch', 'JSON array of {address,allowed} entries', undefined, types.json)
+  .addOptionalParam('batchFile', 'Path to JSON or newline-separated file of entries', undefined, types.string)
+  .addOptionalParam('planOut', 'Path to write a Safe-ready transaction summary JSON', undefined, types.string)
+  .addFlag('execute', 'Broadcast the emergency access updates')
+  .setAction(async (args, hre) => {
+    const identity = await resolveIdentity(hre, args.identity);
+    const identityAddress = toChecksum(identity.address);
+    const owner = toChecksum(await identity.owner());
+    const sender = await resolveSender(hre, args.from);
+
+    const allowList = [];
+    if (args.allow) {
+      allowList.push(args.allow);
+    }
+    if (args.allowAddresses) {
+      allowList.push(args.allowAddresses);
+    }
+
+    const revokeList = [];
+    if (args.revoke) {
+      revokeList.push(args.revoke);
+    }
+    if (args.revokeAddresses) {
+      revokeList.push(args.revokeAddresses);
+    }
+
+    const batchEntries = [];
+    if (args.batch) {
+      if (Array.isArray(args.batch)) {
+        batchEntries.push(...args.batch);
+      } else {
+        batchEntries.push(args.batch);
+      }
+    }
+
+    const modifications = resolveModificationEntries({
+      allowList,
+      revokeList,
+      batch: batchEntries,
+      filePath: args.batchFile,
+    });
+    const networkName = hre.network && hre.network.name ? hre.network.name : '(unspecified)';
+
+    console.log('AGIJobsv1 — IdentityRegistry Hardhat emergency console');
+    console.log('Action: set-emergency');
+    console.log(`Network: ${networkName}`);
+    console.log(`IdentityRegistry: ${identityAddress}`);
+    console.log(`Owner: ${owner || '(unknown)'}`);
+    console.log(`Sender: ${sender}`);
+    console.log('');
+
+    if (modifications.length === 0) {
+      console.log('No emergency access changes detected.');
+      return;
+    }
+
+    const planEntries = buildEmergencyPlanEntries(modifications);
+    const enrichedEntries = enrichPlanEntriesWithCalldata(identity, planEntries);
+
+    formatEmergencyPlanLines(planEntries).forEach((line) => console.log(line));
+
+    const summary = buildEmergencyPlanSummary({
+      identityAddress,
+      owner,
+      sender,
+      planEntries: enrichedEntries,
+    });
+
+    if (args.planOut) {
+      const written = writeEmergencyPlanSummary(summary, args.planOut);
+      console.log(`\nPlan summary written to ${written}`);
+    }
+
+    if (!args.execute) {
+      console.log('\nDry run: transaction not broadcast.');
+      console.log(JSON.stringify(summary, null, 2));
+      return;
+    }
+
+    ensureOwner(sender, owner);
+
+    for (let i = 0; i < enrichedEntries.length; i += 1) {
+      const step = enrichedEntries[i];
+      // eslint-disable-next-line no-await-in-loop
+      const receipt = await identity[step.method](...step.args, { from: sender });
+      console.log(`Broadcast ${step.method}(${formatAddress(step.address, hre.web3)}, ${step.allowed}) — tx: ${receipt.tx}`);
+    }
   });
