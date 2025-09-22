@@ -116,6 +116,13 @@ Edit configuration files under `config/` to match the deployment environment:
 - `npx hardhat job-registry:status --network <network>` mirrors the owner console status view using the Hardhat runtime, so
   environments that already rely on Hardhat scripts can fetch configuration snapshots and job summaries without switching to
   Truffle.
+- `npx hardhat job-registry:set-config --network <network> --modules '{"identity":"0x…"}' --plan-out ./plan.json` aligns
+  modules, timings, and thresholds with `config/params.json` defaults and optional JSON overrides. The task prints a
+  multi-transaction plan with encoded calldata, writes an optional Safe-ready summary, and refuses to broadcast unless `--execute`
+  and an owner sender are supplied.
+- `npx hardhat job-registry:update-config --network <network> --thresholds '{"feeBps":275}' --execute --from 0xOwner` updates a
+  single module, timing, or threshold via the granular update functions. It reuses the same validation guardrails as the
+  configuration console, emits plan summaries, and enforces owner checks before broadcasting.
 - `npx hardhat job-registry:extend --network <network> --job <id> --commit-extension 3600` (and the related `finalize`,
   `timeout`, and `resolve` tasks) reproduce the owner console invariants while defaulting to dry-run mode. The tasks emit
   human-readable summaries, raw calldata, and optional JSON artifacts (`--plan-out ./plan.json`) that multisig operators can
