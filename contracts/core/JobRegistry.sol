@@ -90,6 +90,12 @@ contract JobRegistry is Pausable, ReentrancyGuard {
     event JobDisputed(uint256 indexed jobId, address indexed raiser);
     event DisputeResolved(uint256 indexed jobId, bool slashed, uint256 slashAmount);
     event JobTimedOut(uint256 indexed jobId, uint256 slashAmount);
+    event JobDeadlinesExtended(
+        uint256 indexed jobId,
+        uint256 commitDeadline,
+        uint256 revealDeadline,
+        uint256 disputeDeadline
+    );
 
     error InvalidState(JobState expected, JobState actual);
     error WindowExpired(string window);
@@ -97,6 +103,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
     error NotConfigured(bytes32 component);
     error UnauthorizedDisputeRaiser(uint256 jobId, address caller);
     error SlashAmountWithoutSlashing();
+    error JobInactive(JobState state);
 
     bytes32 private constant MODULES_KEY = "modules";
     bytes32 private constant TIMINGS_KEY = "timings";
@@ -264,6 +271,51 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         require(updated.quorumMin > 0 && updated.quorumMax >= updated.quorumMin, "JobRegistry: quorum");
         thresholds = updated;
         emit ThresholdsUpdated(updated);
+    }
+
+    /// @notice Extends job-specific deadlines while maintaining lifecycle ordering.
+    /// @param jobId Identifier of the job being updated.
+    /// @param commitExtension Additional seconds granted to the commit phase.
+    /// @param revealExtension Additional seconds granted to the reveal phase.
+    /// @param disputeExtension Additional seconds granted to the dispute phase.
+    function extendJobDeadlines(
+        uint256 jobId,
+        uint256 commitExtension,
+        uint256 revealExtension,
+        uint256 disputeExtension
+    ) external onlyOwner {
+        if (commitExtension == 0 && revealExtension == 0 && disputeExtension == 0) {
+            revert("JobRegistry: no extension");
+        }
+
+        Job storage job = jobs[jobId];
+        JobState state = job.state;
+        if (state != JobState.Created && state != JobState.Committed && state != JobState.Revealed) {
+            revert JobInactive(state);
+        }
+
+        uint256 newCommitDeadline = job.commitDeadline;
+        uint256 newRevealDeadline = job.revealDeadline;
+        uint256 newDisputeDeadline = job.disputeDeadline;
+
+        if (commitExtension > 0) {
+            newCommitDeadline += commitExtension;
+        }
+        if (revealExtension > 0) {
+            newRevealDeadline += revealExtension;
+        }
+        if (disputeExtension > 0) {
+            newDisputeDeadline += disputeExtension;
+        }
+
+        require(newRevealDeadline >= newCommitDeadline, "JobRegistry: reveal before commit");
+        require(newDisputeDeadline >= newRevealDeadline, "JobRegistry: dispute before reveal");
+
+        job.commitDeadline = newCommitDeadline;
+        job.revealDeadline = newRevealDeadline;
+        job.disputeDeadline = newDisputeDeadline;
+
+        emit JobDeadlinesExtended(jobId, newCommitDeadline, newRevealDeadline, newDisputeDeadline);
     }
 
     /// @notice Creates a new job and reserves stake for the workflow.

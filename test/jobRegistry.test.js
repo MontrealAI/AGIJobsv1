@@ -41,6 +41,7 @@ const CUSTOM_ERROR_TYPES = {
   WindowExpired: ['string'],
   FeeBounds: [],
   SlashAmountWithoutSlashing: [],
+  JobInactive: ['uint8'],
 };
 
 const JOB_STATES = {
@@ -712,6 +713,83 @@ contract('JobRegistry', (accounts) => {
     await expectRevert(
       this.jobRegistry.updateTiming(TIMING_KEYS.CommitWindow, 7200, { from: stranger }),
       'Ownable: caller is not the owner'
+    );
+  });
+
+  it('allows the owner to extend job deadlines while preserving ordering', async function () {
+    const stakeAmount = web3.utils.toBN('500');
+    await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const { logs } = await this.jobRegistry.createJob(stakeAmount, { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    const before = await this.jobRegistry.jobs(jobId);
+    const commitExtension = web3.utils.toBN('1800');
+    const revealExtension = web3.utils.toBN('3600');
+    const disputeExtension = web3.utils.toBN('7200');
+
+    const receipt = await this.jobRegistry.extendJobDeadlines(
+      jobId,
+      commitExtension,
+      revealExtension,
+      disputeExtension,
+      { from: deployer }
+    );
+
+    const expectedCommit = before.commitDeadline.add(commitExtension);
+    const expectedReveal = before.revealDeadline.add(revealExtension);
+    const expectedDispute = before.disputeDeadline.add(disputeExtension);
+
+    expectEvent(receipt, 'JobDeadlinesExtended', {
+      jobId,
+      commitDeadline: expectedCommit,
+      revealDeadline: expectedReveal,
+      disputeDeadline: expectedDispute,
+    });
+
+    const after = await this.jobRegistry.jobs(jobId);
+    assert.strictEqual(after.commitDeadline.toString(), expectedCommit.toString());
+    assert.strictEqual(after.revealDeadline.toString(), expectedReveal.toString());
+    assert.strictEqual(after.disputeDeadline.toString(), expectedDispute.toString());
+
+    assert.isTrue(after.commitDeadline.lt(after.revealDeadline));
+    assert.isTrue(after.revealDeadline.lt(after.disputeDeadline));
+  });
+
+  it('enforces ownership and lifecycle rules when extending deadlines', async function () {
+    const stakeAmount = web3.utils.toBN('600');
+    await this.stakeManager.deposit(stakeAmount, { from: worker });
+    const { logs } = await this.jobRegistry.createJob(stakeAmount, { from: client });
+    const jobId = logs.find((l) => l.event === 'JobCreated').args.jobId;
+
+    await expectRevert(
+      this.jobRegistry.extendJobDeadlines(jobId, 1, 0, 0, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.jobRegistry.extendJobDeadlines(jobId, 0, 0, 0, { from: deployer }),
+      'JobRegistry: no extension'
+    );
+
+    await expectRevert(
+      this.jobRegistry.extendJobDeadlines(jobId, 4000, 0, 0, { from: deployer }),
+      'JobRegistry: reveal before commit'
+    );
+
+    await expectRevert(
+      this.jobRegistry.extendJobDeadlines(jobId, 0, 20000, 0, { from: deployer }),
+      'JobRegistry: dispute before reveal'
+    );
+
+    const secret = web3.utils.randomHex(32);
+    const hash = web3.utils.soliditySha3({ type: 'bytes32', value: secret });
+    await this.jobRegistry.commitJob(jobId, hash, { from: worker });
+    await this.jobRegistry.revealJob(jobId, secret, { from: worker });
+    await this.jobRegistry.finalizeJob(jobId, true, { from: deployer });
+
+    await expectCustomError(
+      this.jobRegistry.extendJobDeadlines(jobId, 0, 0, 1, { from: deployer }),
+      `JobRegistry.JobInactive(${JOB_STATES.Finalized})`
     );
   });
 
