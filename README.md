@@ -66,6 +66,15 @@ Edit configuration files under `config/` to match the deployment environment:
 - Override the default configuration profile with `-- --params /path/to/params.json` when staging alternate environments, or
   use `-- --variant sepolia` to label the summary with the intended target network.
 
+### JobRegistry owner console
+
+- Launch the guided owner workflow with `npm run owner:console -- --network <network> status` to inspect configuration or
+  `npm run owner:console -- --network <network> extend --job <id> --commit-extension 3600` to plan actions.
+- The console prints a Safe-ready transaction payload during dry runs so operators can copy/paste it into a multisig. Add
+  `--execute` once satisfied with the plan; the script verifies the sender is the on-chain owner before broadcasting.
+- `extend`, `finalize`, `timeout`, and `resolve` commands enforce the same invariants as the contracts (quorum bounds,
+  slashing ceilings, lifecycle states) so non-technical operators receive human-readable error messages before risking gas.
+
 ### Alpha Club activation
 
 Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.
