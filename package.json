@@ -31,6 +31,7 @@
     "namehash:dev": "node scripts/compute-namehash.js dev",
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
     "config:validate": "node scripts/validate-config.js",
+    "config:params": "node scripts/edit-params.js",
     "prepare": "husky install",
     "hardhat:test": "node scripts/run-tests.js",
     "config:console": "npx truffle exec scripts/job-registry-config-console.js --network ${NETWORK:-development}"
