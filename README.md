@@ -12,9 +12,12 @@ npm run build
 npm run test
 npm run coverage
 npm run config:validate
+npm run diagnose
 ```
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
+
+`npm run diagnose` runs a comprehensive readiness audit: it checks Node.js/npm versions against the repository baseline, confirms Hardhat and Truffle are installed, reuses the configuration validator, and flags missing deployment environment variables so non-technical operators can prepare production releases safely.
 
 ### Agent gateway commit/reveal workflow
 
