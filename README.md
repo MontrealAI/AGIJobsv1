@@ -159,6 +159,17 @@ Sepolia deployments now read from their own configuration files, so populate `co
 3. Restore the original names and run `npm run namehash -- dev` (or omit the argument to target `mainnet`) to confirm the
    variant-based workflow still rewrites the resolved config file.
 
+### Release bundle automation
+
+- Run `npm run release:bundle` to produce a self-contained `tar.gz` archive with compiled artifacts, configuration
+  profiles, documentation, and operational scripts. The command defaults to the `mainnet` configuration profile and writes the
+  archive to `dist/agi-jobs-<variant>-<timestamp>.tar.gz`.
+- Pass `-- --variant sepolia` to embed alternative configuration variants or `-- --out ./path/to/bundle.tar.gz` to control
+  the archive destination. The generated bundle includes `INSTRUCTIONS.md` with a deployment checklist, highlighted
+  configuration files, and the parameter summary so non-technical operators can double-check governance thresholds before
+  broadcasting transactions.
+- See `docs/release-bundle.md` for a full walkthrough, including Safe planning tips and suggested operational guardrails.
+
 ## Mainnet deployment profile
 
 The repository is pre-configured for Ethereum mainnet and the production $AGIALPHA stake token. Confirm the following addresses
