@@ -55,6 +55,17 @@ Edit configuration files under `config/` to match the deployment environment:
 - Run `npm run config:validate` after editing to confirm addresses, namehashes, and governance parameters satisfy production
   guardrails before broadcasting migrations.
 
+### JobRegistry configuration helper
+
+- Execute `npm run configure:registry` for a non-destructive dry run that compares the on-chain JobRegistry wiring, lifecycle
+  timings, and governance thresholds against the repository defaults. The summary highlights any drift and prints the sender,
+  owner, and params profile so operators can confirm the context before acting.
+- Pass `-- --execute --from 0xYourOwnerAddress` to broadcast updates from an authorized account. The helper automatically
+  repopulates missing module addresses from local deployments, applies overrides provided via CLI flags (for example,
+  `--modules.identity` or `--thresholds.feeBps`), and validates all numerical constraints before submitting transactions.
+- Override the default configuration profile with `-- --params /path/to/params.json` when staging alternate environments, or
+  use `-- --variant sepolia` to label the summary with the intended target network.
+
 ### Alpha Club activation
 
 Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.

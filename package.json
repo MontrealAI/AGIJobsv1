@@ -25,6 +25,7 @@
     "export:artifacts": "NETWORK=${NETWORK:-development} node scripts/export-artifacts-runner.js",
     "wire:verify": "npx truffle exec scripts/verify-wiring.js --network ${NETWORK:-development}",
     "registrar:verify": "npx truffle exec scripts/verify-registrar.js --network ${NETWORK:-development}",
+    "configure:registry": "npx truffle exec scripts/configure-job-registry.js --network ${NETWORK:-development}",
     "namehash": "node scripts/compute-namehash.js",
     "namehash:dev": "node scripts/compute-namehash.js dev",
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
