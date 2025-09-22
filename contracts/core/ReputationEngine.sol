@@ -21,6 +21,17 @@ contract ReputationEngine is Pausable {
         emit JobRegistryUpdated(registry);
     }
 
+    /// @notice Reassigns the registry controlling reputation adjustments.
+    /// @param registry Address of the replacement registry contract.
+    function updateJobRegistry(address registry) external onlyOwner whenPaused {
+        require(registry != address(0), "ReputationEngine: registry");
+        address current = jobRegistry;
+        require(current != address(0), "ReputationEngine: registry unset");
+        require(current != registry, "ReputationEngine: registry unchanged");
+        jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
+    }
+
     modifier onlyRegistry() {
         require(msg.sender == jobRegistry, "ReputationEngine: not registry");
         _;

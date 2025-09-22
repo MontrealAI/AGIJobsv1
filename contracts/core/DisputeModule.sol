@@ -21,6 +21,17 @@ contract DisputeModule is Pausable {
         emit JobRegistryUpdated(registry);
     }
 
+    /// @notice Updates the registry authorized to report dispute lifecycle events.
+    /// @param registry Address of the new registry contract.
+    function updateJobRegistry(address registry) external onlyOwner whenPaused {
+        require(registry != address(0), "DisputeModule: registry");
+        address current = jobRegistry;
+        require(current != address(0), "DisputeModule: registry unset");
+        require(current != registry, "DisputeModule: registry unchanged");
+        jobRegistry = registry;
+        emit JobRegistryUpdated(registry);
+    }
+
     modifier onlyRegistry() {
         require(msg.sender == jobRegistry, "DisputeModule: not registry");
         _;

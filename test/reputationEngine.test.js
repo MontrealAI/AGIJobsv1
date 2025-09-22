@@ -29,6 +29,50 @@ contract('ReputationEngine', (accounts) => {
     );
   });
 
+  it('allows the owner to migrate the registry while paused', async function () {
+    await expectRevert(
+      this.engine.updateJobRegistry(registry, { from: owner }),
+      'Pausable: not paused'
+    );
+
+    await this.engine.pause({ from: owner });
+    await expectRevert(
+      this.engine.updateJobRegistry(registry, { from: owner }),
+      'ReputationEngine: registry unset'
+    );
+    await this.engine.unpause({ from: owner });
+
+    await this.engine.setJobRegistry(registry, { from: owner });
+
+    await expectRevert(
+      this.engine.updateJobRegistry(worker, { from: worker }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.engine.updateJobRegistry(worker, { from: owner }),
+      'Pausable: not paused'
+    );
+
+    await this.engine.pause({ from: owner });
+
+    await expectRevert(
+      this.engine.updateJobRegistry(constants.ZERO_ADDRESS, { from: owner }),
+      'ReputationEngine: registry'
+    );
+
+    await expectRevert(
+      this.engine.updateJobRegistry(registry, { from: owner }),
+      'ReputationEngine: registry unchanged'
+    );
+
+    const receipt = await this.engine.updateJobRegistry(worker, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: worker });
+    assert.strictEqual(await this.engine.jobRegistry(), worker);
+
+    await this.engine.unpause({ from: owner });
+  });
+
   it('adjusts reputation only when called by registry', async function () {
     await expectRevert(
       this.engine.adjustReputation(worker, 1, { from: owner }),
