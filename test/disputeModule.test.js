@@ -29,6 +29,50 @@ contract('DisputeModule', (accounts) => {
     );
   });
 
+  it('lets the owner rotate the registry assignment during a pause', async function () {
+    await expectRevert(
+      this.module.updateJobRegistry(registry, { from: owner }),
+      'Pausable: not paused'
+    );
+
+    await this.module.pause({ from: owner });
+    await expectRevert(
+      this.module.updateJobRegistry(registry, { from: owner }),
+      'DisputeModule: registry unset'
+    );
+    await this.module.unpause({ from: owner });
+
+    await this.module.setJobRegistry(registry, { from: owner });
+
+    await expectRevert(
+      this.module.updateJobRegistry(raiser, { from: raiser }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.module.updateJobRegistry(raiser, { from: owner }),
+      'Pausable: not paused'
+    );
+
+    await this.module.pause({ from: owner });
+
+    await expectRevert(
+      this.module.updateJobRegistry(constants.ZERO_ADDRESS, { from: owner }),
+      'DisputeModule: registry'
+    );
+
+    await expectRevert(
+      this.module.updateJobRegistry(registry, { from: owner }),
+      'DisputeModule: registry unchanged'
+    );
+
+    const receipt = await this.module.updateJobRegistry(raiser, { from: owner });
+    expectEvent(receipt, 'JobRegistryUpdated', { jobRegistry: raiser });
+    assert.strictEqual(await this.module.jobRegistry(), raiser);
+
+    await this.module.unpause({ from: owner });
+  });
+
   it('emits events only when called by the registry', async function () {
     await this.module.setJobRegistry(registry, { from: owner });
 
