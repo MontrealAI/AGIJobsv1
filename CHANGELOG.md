@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Guided JobRegistry owner wizard with interactive and non-interactive modes, plan exports, and broadcast safeguards.
+- Hardhat `job-registry:set-config` and `job-registry:update-config` tasks that mirror the configuration console with JSON
+  overrides, plan exports, and owner enforcement.
 
 ## [1.1.0] - 2025-02-21
 

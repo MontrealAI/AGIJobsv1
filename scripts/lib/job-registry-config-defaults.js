@@ -1,22 +1,34 @@
 'use strict';
 
-const IdentityRegistry = artifacts.require('IdentityRegistry');
-const StakeManager = artifacts.require('StakeManager');
-const ValidationModule = artifacts.require('ValidationModule');
-const DisputeModule = artifacts.require('DisputeModule');
-const ReputationEngine = artifacts.require('ReputationEngine');
-const FeePool = artifacts.require('FeePool');
-
 const { MODULE_KEYS } = require('./job-registry-configurator');
 
-const MODULE_ARTIFACTS = {
-  identity: IdentityRegistry,
-  staking: StakeManager,
-  validation: ValidationModule,
-  dispute: DisputeModule,
-  reputation: ReputationEngine,
-  feePool: FeePool,
+const MODULE_ARTIFACT_NAMES = {
+  identity: 'IdentityRegistry',
+  staking: 'StakeManager',
+  validation: 'ValidationModule',
+  dispute: 'DisputeModule',
+  reputation: 'ReputationEngine',
+  feePool: 'FeePool',
 };
+
+function resolveArtifacts() {
+  if (typeof artifacts === 'undefined' || !artifacts || typeof artifacts.require !== 'function') {
+    throw new Error(
+      'Truffle artifacts are not available. Ensure @nomiclabs/hardhat-truffle5 is loaded before resolving module defaults.'
+    );
+  }
+
+  return MODULE_ARTIFACT_NAMES;
+}
+
+function getArtifactByKey(key) {
+  const mapping = resolveArtifacts();
+  const name = mapping[key];
+  if (!name) {
+    return null;
+  }
+  return artifacts.require(name);
+}
 
 async function resolveModuleDefaults(overrides) {
   const defaults = {};
@@ -26,7 +38,7 @@ async function resolveModuleDefaults(overrides) {
       continue;
     }
 
-    const artifact = MODULE_ARTIFACTS[key];
+    const artifact = getArtifactByKey(key);
     if (!artifact) {
       continue;
     }
@@ -45,6 +57,6 @@ async function resolveModuleDefaults(overrides) {
 }
 
 module.exports = {
-  MODULE_ARTIFACTS,
+  MODULE_ARTIFACT_NAMES,
   resolveModuleDefaults,
 };

@@ -107,3 +107,6 @@ resulting JSON without persisting changes when running audits or experiments.
 - `npm run configure:registry` and `npm run config:wizard` reuse the same parsing
   helpers when staging on-chain updates, so any improvements made here carry
   through to owner workflows automatically.
+- Hardhat operators can call `npx hardhat job-registry:set-config --network <network> --timings '{"commitWindow":3600}'`
+  or `npx hardhat job-registry:update-config --thresholds '{"feeBps":275}'` to apply the validated parameters on-chain
+  with plan exports and owner enforcement without leaving the Hardhat environment.
