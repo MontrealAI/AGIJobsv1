@@ -14,6 +14,7 @@ const {
   formatStatusLines,
   formatTxPlanLines,
 } = require('./lib/job-registry-owner');
+const { serializeForJson } = require('./lib/json-utils');
 
 const ACTION_CHOICES = [
   { key: 'status', description: 'Inspect configuration and optional job status (no transaction)' },
@@ -116,45 +117,6 @@ function describeActions(defaultAction) {
     const marker = choice.key === defaultAction ? '*' : ' ';
     console.log(`  ${marker} ${index + 1}. ${choice.key} — ${choice.description}`);
   });
-}
-
-function serializeForJson(value) {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  const valueType = typeof value;
-  if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
-    return value;
-  }
-
-  if (valueType === 'bigint') {
-    return value.toString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => serializeForJson(entry));
-  }
-
-  if (valueType === 'object') {
-    if (
-      value.constructor &&
-      value.constructor.name === 'BN' &&
-      typeof value.toString === 'function'
-    ) {
-      return value.toString();
-    }
-
-    const serialized = {};
-    Object.entries(value).forEach(([key, entry]) => {
-      serialized[key] = serializeForJson(entry);
-    });
-    return serialized;
-  }
-
-  return value;
-}
-
 async function promptOrFallback({
   interactive,
   rl,

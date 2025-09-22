@@ -108,6 +108,19 @@ Edit configuration files under `config/` to match the deployment environment:
 - The prompt also verifies sender ownership before broadcasting and emits a JSON summary of every dry run so non-technical
   operators can forward calldata without parsing console output.
 
+### JobRegistry Hardhat tasks
+
+- `npx hardhat job-registry:status --network <network>` mirrors the owner console status view using the Hardhat runtime, so
+  environments that already rely on Hardhat scripts can fetch configuration snapshots and job summaries without switching to
+  Truffle.
+- `npx hardhat job-registry:extend --network <network> --job <id> --commit-extension 3600` (and the related `finalize`,
+  `timeout`, and `resolve` tasks) reproduce the owner console invariants while defaulting to dry-run mode. The tasks emit
+  human-readable summaries, raw calldata, and optional JSON artifacts (`--plan-out ./plan.json`) that multisig operators can
+  import directly.
+- Pass `--execute --from 0xOwner` to broadcast transactions once the plan looks correct. The helper refuses to send from
+  non-owner accounts and keeps parity with the script library by delegating to the shared `job-registry-owner` validation
+  utilities.
+
 ### IdentityRegistry ENS console
 
 - Run `npm run identity:console -- --network <network> status` for a snapshot of the on-chain ENS wiring, including
