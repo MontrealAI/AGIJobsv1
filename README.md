@@ -131,6 +131,15 @@ Edit configuration files under `config/` to match the deployment environment:
   non-owner accounts and keeps parity with the script library by delegating to the shared `job-registry-owner` validation
   utilities.
 
+### IdentityRegistry Hardhat tasks
+
+- `npx hardhat identity-registry:status --network <network>` prints the on-chain ENS configuration, automatically compares it
+  against the repository config profile (or an explicit `--config` path), and highlights any drift together with optional
+  override previews such as `--overrides '{"alphaEnabled":true}'`.
+- `npx hardhat identity-registry:set-config --network <network> --execute --from 0xOwner` aligns the ENS wiring with
+  repository defaults and overrides, writes optional Safe-ready JSON plans via `--plan-out`, enforces owner checks before
+  broadcasting, and emits a dry-run transaction summary when `--execute` is omitted.
+
 ### IdentityRegistry ENS console
 
 - Run `npm run identity:console -- --network <network> status` for a snapshot of the on-chain ENS wiring, including
