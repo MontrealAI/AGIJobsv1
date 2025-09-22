@@ -11,11 +11,12 @@ contract FeePool is Ownable {
     event FeeRecorded(uint256 amount);
     event JobRegistryUpdated(address indexed jobRegistry);
     event FeesBurned(uint256 amount);
+    event BurnAddressUpdated(address indexed previousBurnAddress, address indexed newBurnAddress);
 
     address public immutable feeToken;
-    address public immutable burnAddress;
     uint256 public totalFeesRecorded;
     address public jobRegistry;
+    address private _burnAddress;
 
     using SafeERC20 for IERC20;
 
@@ -26,7 +27,8 @@ contract FeePool is Ownable {
         require(token != address(0), "FeePool: token");
         require(burnAddr != address(0), "FeePool: burn");
         feeToken = token;
-        burnAddress = burnAddr;
+        _burnAddress = burnAddr;
+        emit BurnAddressUpdated(address(0), burnAddr);
     }
 
     /// @notice Sets the job registry authorized to report fees.
@@ -68,6 +70,22 @@ contract FeePool is Ownable {
         uint256 balance = token.balanceOf(address(this));
         require(balance > 0, "FeePool: nothing to burn");
         emit FeesBurned(balance);
-        token.safeTransfer(burnAddress, balance);
+        token.safeTransfer(_burnAddress, balance);
+    }
+
+    /// @notice Updates the destination that receives protocol fee burns.
+    /// @param newBurnAddress Address that will receive future burn transfers.
+    function updateBurnAddress(address newBurnAddress) external onlyOwner {
+        require(newBurnAddress != address(0), "FeePool: burn");
+        address previous = _burnAddress;
+        require(previous != newBurnAddress, "FeePool: burn unchanged");
+        _burnAddress = newBurnAddress;
+        emit BurnAddressUpdated(previous, newBurnAddress);
+    }
+
+    /// @notice Returns the address currently configured to receive fee burns.
+    /// @return burnAddr Address that receives tokens from {burnAccumulatedFees}.
+    function burnAddress() external view returns (address burnAddr) {
+        burnAddr = _burnAddress;
     }
 }
