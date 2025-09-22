@@ -10,6 +10,10 @@ contract('FeePool', (accounts) => {
     this.pool = await FeePool.new(this.token.address, burnAddress, { from: owner });
   });
 
+  it('tracks the configured burn address after construction', async function () {
+    assert.strictEqual(await this.pool.burnAddress(), burnAddress);
+  });
+
   it('sets the job registry with owner checks', async function () {
     await expectRevert(this.pool.setJobRegistry(constants.ZERO_ADDRESS, { from: owner }), 'FeePool: registry');
     await expectRevert(this.pool.setJobRegistry(registry, { from: registry }), 'Ownable: caller is not the owner');
@@ -89,5 +93,29 @@ contract('FeePool', (accounts) => {
     const receipt = await this.pool.burnAccumulatedFees({ from: owner });
     expectEvent(receipt, 'FeesBurned', { amount: web3.utils.toBN(200) });
     assert.strictEqual((await this.token.balanceOf(burnAddress)).toString(), '200');
+  });
+
+  it('allows the owner to update the burn address with safeguards', async function () {
+    await expectRevert(this.pool.updateBurnAddress(constants.ZERO_ADDRESS, { from: owner }), 'FeePool: burn');
+    await expectRevert(
+      this.pool.updateBurnAddress(burnAddress, { from: owner }),
+      'FeePool: burn unchanged'
+    );
+    await expectRevert(
+      this.pool.updateBurnAddress(stranger, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    const receipt = await this.pool.updateBurnAddress(stranger, { from: owner });
+    expectEvent(receipt, 'BurnAddressUpdated', {
+      previousBurnAddress: burnAddress,
+      newBurnAddress: stranger,
+    });
+
+    assert.strictEqual(await this.pool.burnAddress(), stranger);
+
+    await this.token.transfer(this.pool.address, '50', { from: owner });
+    await this.pool.burnAccumulatedFees({ from: owner });
+    assert.strictEqual((await this.token.balanceOf(stranger)).toString(), '50');
   });
 });
