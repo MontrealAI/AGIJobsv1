@@ -773,12 +773,12 @@ contract('JobRegistry', (accounts) => {
 
     await expectRevert(
       this.jobRegistry.extendJobDeadlines(jobId, 4000, 0, 0, { from: deployer }),
-      'JobRegistry: reveal before commit'
+      'JobRegistry: reveal<commit'
     );
 
     await expectRevert(
       this.jobRegistry.extendJobDeadlines(jobId, 0, 20000, 0, { from: deployer }),
-      'JobRegistry: dispute before reveal'
+      'JobRegistry: dispute<reveal'
     );
 
     const secret = web3.utils.randomHex(32);

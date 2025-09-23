@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-interface IENSRegistryLike {
-    function owner(bytes32 node) external view returns (address);
-}
-
-interface IENSNameWrapperLike {
-    function ownerOf(uint256 id) external view returns (address);
-
-    function getData(uint256 id) external view returns (address owner, uint32 fuses, uint64 expiry);
-}
+import {IENSRegistryLike} from "../interfaces/IENSRegistryLike.sol";
+import {IENSNameWrapperLike} from "../interfaces/IENSNameWrapperLike.sol";
 
 library EnsOwnership {
     error EnsOwnershipRegistryUnset();

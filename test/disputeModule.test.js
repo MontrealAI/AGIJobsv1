@@ -63,7 +63,7 @@ contract('DisputeModule', (accounts) => {
 
     await expectRevert(
       this.module.updateJobRegistry(registry, { from: owner }),
-      'DisputeModule: registry unchanged'
+      'DisputeModule: same registry'
     );
 
     const receipt = await this.module.updateJobRegistry(raiser, { from: owner });

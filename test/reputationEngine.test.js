@@ -63,7 +63,7 @@ contract('ReputationEngine', (accounts) => {
 
     await expectRevert(
       this.engine.updateJobRegistry(registry, { from: owner }),
-      'ReputationEngine: registry unchanged'
+      'ReputationEngine: same registry'
     );
 
     const receipt = await this.engine.updateJobRegistry(worker, { from: owner });

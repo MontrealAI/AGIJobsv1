@@ -27,7 +27,7 @@ contract DisputeModule is Pausable {
         require(registry != address(0), "DisputeModule: registry");
         address current = jobRegistry;
         require(current != address(0), "DisputeModule: registry unset");
-        require(current != registry, "DisputeModule: registry unchanged");
+        require(current != registry, "DisputeModule: same registry");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }

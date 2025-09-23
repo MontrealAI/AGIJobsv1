@@ -308,8 +308,8 @@ contract JobRegistry is Pausable, ReentrancyGuard {
             newDisputeDeadline += disputeExtension;
         }
 
-        require(newRevealDeadline >= newCommitDeadline, "JobRegistry: reveal before commit");
-        require(newDisputeDeadline >= newRevealDeadline, "JobRegistry: dispute before reveal");
+        require(newRevealDeadline >= newCommitDeadline, "JobRegistry: reveal<commit");
+        require(newDisputeDeadline >= newRevealDeadline, "JobRegistry: dispute<reveal");
 
         job.commitDeadline = newCommitDeadline;
         job.revealDeadline = newRevealDeadline;
