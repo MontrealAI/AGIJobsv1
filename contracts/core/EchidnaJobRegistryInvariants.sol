@@ -18,6 +18,7 @@ import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 /* solhint-disable func-name-mixedcase */
 
 /// @dev Harness used by Echidna to ensure high-level invariants remain true under fuzzing.
+// solhint-disable-next-line reentrancy -- Echidna harness exercises guarded flows for fuzzing
 contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     uint256 private constant MAX_STAKE = 1e18;
     uint256 private constant WORKER_INITIAL_BALANCE = MAX_STAKE * 100;
@@ -41,6 +42,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     bool private slashBoundsViolated;
     uint256 private expectedFees;
 
+    // solhint-disable-next-line reentrancy -- constructor wires dependencies then seeds actors
     constructor() {
         stakeToken = new MockERC20(
             "Stake Token",
@@ -76,14 +78,14 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         disputeModule.setJobRegistry(address(jobRegistry));
         reputationEngine.setJobRegistry(address(jobRegistry));
 
+        client = new ClientActor(jobRegistry);
+
         for (uint256 i = 0; i < workers.length; ++i) {
             WorkerActor worker = new WorkerActor(stakeManager, jobRegistry, stakeToken);
             workers[i] = worker;
             stakeToken.transfer(address(worker), WORKER_INITIAL_BALANCE);
             worker.approveStakeManager(type(uint256).max);
         }
-
-        client = new ClientActor(jobRegistry);
     }
 
     /// @notice Deposits a fuzzed amount of stake for a selected worker actor.

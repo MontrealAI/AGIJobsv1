@@ -27,7 +27,7 @@ contract ReputationEngine is Pausable {
         require(registry != address(0), "ReputationEngine: registry");
         address current = jobRegistry;
         require(current != address(0), "ReputationEngine: registry unset");
-        require(current != registry, "ReputationEngine: registry unchanged");
+        require(current != registry, "ReputationEngine: same registry");
         jobRegistry = registry;
         emit JobRegistryUpdated(registry);
     }

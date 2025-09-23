@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IENSRegistryLike} from "./EnsOwnership.sol";
+import {IENSRegistryLike} from "../interfaces/IENSRegistryLike.sol";
 
 /// @dev Lightweight ENS registry used for tests that require ownership tracking.
 contract MockENSRegistry is IENSRegistryLike {

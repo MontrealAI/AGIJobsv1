@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IENSNameWrapperLike} from "./EnsOwnership.sol";
+import {IENSNameWrapperLike} from "../interfaces/IENSNameWrapperLike.sol";
 
 /// @dev Minimal ENS NameWrapper mock that allows toggling the ownerOf behaviour.
 contract MockENSNameWrapper is IENSNameWrapperLike {
