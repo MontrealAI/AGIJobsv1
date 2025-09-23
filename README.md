@@ -2,7 +2,7 @@
 
 [![Coverage](https://codecov.io/gh/agi-protocol/AGIJobsv1/branch/main/graph/badge.svg)](https://codecov.io/gh/agi-protocol/AGIJobsv1)
 
-Institutional-grade, ENS-gated job coordination protocol. Contracts only: Solidity, Truffle migrations, tests, CI.
+Institutional-grade, ENS-gated job coordination protocol. Contracts only: Solidity, Truffle migrations, tests, CI. For the strategic narrative behind the rollout, see the [AGI Jobs v1 Master Plan](docs/MasterPlanv1.md).
 
 ## Quickstart
 
@@ -18,6 +18,12 @@ npm run diagnose
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
 
 `npm run diagnose` runs a comprehensive readiness audit: it checks Node.js/npm versions against the repository baseline, confirms Hardhat and Truffle are installed, reuses the configuration validator, and flags missing deployment environment variables so non-technical operators can prepare production releases safely.
+
+## Documentation
+
+- [AGI Jobs v1 Master Plan](docs/MasterPlanv1.md) — executive framing for non-technical stakeholders.
+- [Parameter management guide](docs/parameter-management.md) — lifecycle for updating commit/reveal and governance thresholds.
+- [Mainnet deployment simulation](docs/mainnet-deployment-simulation.md) — dry-run transcript covering production readiness.
 
 ### Agent gateway commit/reveal workflow
 
