@@ -1,5 +1,10 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
+const { serializeForJson } = require('./json-utils');
+
 const JOB_STATE_NAMES = ['None', 'Created', 'Committed', 'Revealed', 'Finalized', 'Disputed'];
 const BPS_DENOMINATOR = 10000;
 
@@ -36,6 +41,7 @@ function parseOwnerConsoleArgs(argv) {
     slashWorker: false,
     slashAmount: '0',
     reputationDelta: '0',
+    planOut: null,
     help: false,
   };
 
@@ -102,6 +108,13 @@ function parseOwnerConsoleArgs(argv) {
         } else {
           result.reputationDelta = String(value);
         }
+        break;
+      case 'plan-out':
+      case 'planOut':
+        if (value === undefined || value === null || value === true) {
+          throw new Error('--plan-out requires a file path argument');
+        }
+        result.planOut = String(value);
         break;
       case 'help':
         result.help = true;
@@ -541,6 +554,49 @@ function formatTxPlanLines(plan, callData, { to }) {
   return lines;
 }
 
+function buildOwnerCallSummary(plan, callData, { to, from }) {
+  if (!plan || typeof plan !== 'object') {
+    throw new Error('plan must be provided when building the owner call summary');
+  }
+
+  if (!to) {
+    throw new Error('Target address is required when building the owner call summary');
+  }
+
+  return {
+    action: plan.action,
+    method: plan.method,
+    args: serializeForJson(plan.args),
+    metadata: serializeForJson(plan.metadata),
+    warnings: Array.isArray(plan.warnings)
+      ? plan.warnings.map((entry) => serializeForJson(entry))
+      : [],
+    call: {
+      to,
+      from: from || null,
+      data: callData || null,
+      value: '0',
+      description: plan.method ? `JobRegistry.${plan.method}` : 'JobRegistry.(unknown)',
+    },
+  };
+}
+
+function writeOwnerCallSummary(summary, outputPath) {
+  if (!summary || typeof summary !== 'object') {
+    throw new Error('summary must be an object when writing the owner call plan');
+  }
+
+  if (!outputPath || typeof outputPath !== 'string') {
+    throw new Error('outputPath must be a non-empty string when writing the owner call plan');
+  }
+
+  const resolvedPath = path.resolve(outputPath);
+  const directory = path.dirname(resolvedPath);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(resolvedPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+  return resolvedPath;
+}
+
 module.exports = {
   JOB_STATE_NAMES,
   BPS_DENOMINATOR,
@@ -550,4 +606,6 @@ module.exports = {
   buildOwnerTxPlan,
   formatStatusLines,
   formatTxPlanLines,
+  buildOwnerCallSummary,
+  writeOwnerCallSummary,
 };
