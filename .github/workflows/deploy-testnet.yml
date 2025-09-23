@@ -18,19 +18,42 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npm run namehash
-      - run: NETWORK=${{ github.event.inputs.network || 'sepolia' }} npm run migrate:sepolia
+      - name: Resolve network
+        id: resolve-network
         env:
+          INPUT_NETWORK: ${{ github.event.inputs.network }}
+        run: |
+          network="${INPUT_NETWORK:-}"
+          network="${network,,}"
+          if [ -z "$network" ]; then
+            network="sepolia"
+          fi
+
+          case "$network" in
+            sepolia|mainnet)
+              ;;
+            *)
+              echo "Unsupported network: $network" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "Resolved network: $network"
+          echo "network=$network" >> "$GITHUB_OUTPUT"
+      - run: npm run migrate:${{ steps.resolve-network.outputs.network }}
+        env:
+          NETWORK: ${{ steps.resolve-network.outputs.network }}
           MNEMONIC: ${{ secrets.MNEMONIC }}
           RPC_SEPOLIA: ${{ secrets.RPC_SEPOLIA }}
+          RPC_MAINNET: ${{ secrets.RPC_MAINNET }}
           GOV_SAFE: ${{ secrets.GOV_SAFE }}
           TIMELOCK_ADDR: ${{ secrets.TIMELOCK_ADDR }}
-      - run: NETWORK=${{ github.event.inputs.network || 'sepolia' }} npm run verify:sepolia
+      - run: npm run verify:${{ steps.resolve-network.outputs.network }}
         env:
+          NETWORK: ${{ steps.resolve-network.outputs.network }}
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
       - name: Export deployment artifacts
-        run: npm run export:artifacts
-        env:
-          NETWORK: ${{ github.event.inputs.network || 'sepolia' }}
+        run: NETWORK=${{ steps.resolve-network.outputs.network }} npm run export:artifacts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: artifacts-public
