@@ -1,3 +1,7 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
 const { expect } = require('chai');
 const { time } = require('@openzeppelin/test-helpers');
 
@@ -15,6 +19,8 @@ const {
   collectOwnerStatus,
   buildOwnerTxPlan,
   JOB_STATE_NAMES,
+  buildOwnerCallSummary,
+  writeOwnerCallSummary,
 } = require('../scripts/lib/job-registry-owner');
 
 async function expectAsyncError(promise, message) {
@@ -94,6 +100,8 @@ contract('JobRegistry owner console helpers', (accounts) => {
       '--slash-worker',
       '--reputation-delta',
       '-3',
+      '--plan-out',
+      './owner-plan.json',
       'resolve',
     ];
 
@@ -104,6 +112,7 @@ contract('JobRegistry owner console helpers', (accounts) => {
     expect(parsed.jobId).to.equal('7');
     expect(parsed.slashWorker).to.be.true;
     expect(parsed.reputationDelta).to.equal('-3');
+    expect(parsed.planOut).to.equal('./owner-plan.json');
   });
 
   it('collects status with job summary', async function () {
@@ -169,6 +178,42 @@ contract('JobRegistry owner console helpers', (accounts) => {
     await this.jobRegistry.finalizeJob(jobId, false, { from: deployer });
     const job = await this.jobRegistry.jobs(jobId);
     expect(job.state.toNumber()).to.equal(4);
+  });
+
+  it('builds an owner call summary and writes the plan to disk', async function () {
+    const jobId = await createJobLifecycle(this);
+    const plan = await buildOwnerTxPlan({
+      registry: this.jobRegistry,
+      web3,
+      options: {
+        action: 'extend',
+        jobId: jobId.toString(),
+        commitExtension: '600',
+        revealExtension: '0',
+        disputeExtension: '0',
+      },
+    });
+
+    const callData = this.jobRegistry.contract.methods[plan.method](...plan.args).encodeABI();
+    const summary = buildOwnerCallSummary(plan, callData, {
+      to: this.jobRegistry.address,
+      from: deployer,
+    });
+
+    expect(summary.action).to.equal('extend');
+    expect(summary.call.to).to.equal(this.jobRegistry.address);
+    expect(summary.call.description).to.equal('JobRegistry.extendJobDeadlines');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'owner-plan-'));
+    const filePath = path.join(tempDir, 'plan.json');
+    const writtenPath = writeOwnerCallSummary(summary, filePath);
+    expect(writtenPath).to.equal(filePath);
+
+    const written = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    expect(written.method).to.equal('extendJobDeadlines');
+    expect(written.call.to).to.equal(this.jobRegistry.address);
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('builds a resolve plan with slashing', async function () {
