@@ -6,6 +6,8 @@ const {
   buildOwnerTxPlan,
   formatStatusLines,
   formatTxPlanLines,
+  buildOwnerCallSummary,
+  writeOwnerCallSummary,
 } = require('./lib/job-registry-owner');
 
 function printHelp() {
@@ -27,6 +29,7 @@ function printHelp() {
   console.log('  --execute[=true|false] Broadcast the transaction (defaults to false)');
   console.log('  --dry-run[=true|false] Alias for --execute');
   console.log('  --job <id>             Target job identifier (required for actions)');
+  console.log('  --plan-out <file>      Write a multisig-ready JSON plan to the specified path');
   console.log('');
   console.log('Extend options:');
   console.log('  --commit-extension <seconds>   Additional commit window seconds');
@@ -78,21 +81,19 @@ module.exports = async function (callback) {
     const lines = formatTxPlanLines(plan, callData, { to: registry.address });
     lines.forEach((line) => console.log(line));
 
+    const summary = buildOwnerCallSummary(plan, callData, {
+      to: registry.address,
+      from: sender,
+    });
+
+    if (options.planOut) {
+      const writtenPath = writeOwnerCallSummary(summary, options.planOut);
+      console.log(`Plan summary written to ${writtenPath}`);
+    }
+
     if (!options.execute) {
       console.log('Dry run: transaction not broadcast.');
-      console.log(
-        JSON.stringify(
-          {
-            to: registry.address,
-            from: sender,
-            data: callData,
-            value: '0',
-            description: `JobRegistry.${plan.method}`,
-          },
-          null,
-          2
-        )
-      );
+      console.log(JSON.stringify(summary.call, null, 2));
       callback();
       return;
     }
