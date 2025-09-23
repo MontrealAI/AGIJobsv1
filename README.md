@@ -96,8 +96,9 @@ Edit configuration files under `config/` to match the deployment environment:
 
 - Launch the guided owner workflow with `npm run owner:console -- --network <network> status` to inspect configuration or
   `npm run owner:console -- --network <network> extend --job <id> --commit-extension 3600` to plan actions.
-- The console prints a Safe-ready transaction payload during dry runs so operators can copy/paste it into a multisig. Add
-  `--execute` once satisfied with the plan; the script verifies the sender is the on-chain owner before broadcasting.
+- The console prints a Safe-ready transaction payload during dry runs so operators can copy/paste it into a multisig.
+  Provide `--plan-out ./job-owner-plan.json` to persist the same payload to disk for hand-off or auditing, and add `--execute`
+  once satisfied with the plan; the script verifies the sender is the on-chain owner before broadcasting.
 - `extend`, `finalize`, `timeout`, and `resolve` commands enforce the same invariants as the contracts (quorum bounds,
   slashing ceilings, lifecycle states) so non-technical operators receive human-readable error messages before risking gas.
 
