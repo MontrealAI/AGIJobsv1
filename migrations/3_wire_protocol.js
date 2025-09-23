@@ -26,6 +26,7 @@ module.exports = async function (_deployer, network, accounts) {
     feePool: feePool.address
   });
 
+  await validation.setJobRegistry(jr.address);
   await staking.setJobRegistry(jr.address);
   await staking.setFeeRecipient(feePool.address);
   await feePool.setJobRegistry(jr.address);

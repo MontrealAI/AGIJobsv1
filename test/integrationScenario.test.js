@@ -35,6 +35,7 @@ contract('Protocol integration scenarios', (accounts) => {
       },
       { from: deployer }
     );
+    await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
     await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
 

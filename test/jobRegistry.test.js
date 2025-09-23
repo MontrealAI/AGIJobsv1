@@ -18,13 +18,13 @@ const GAS_CHECK_ENABLED =
 // Gas ceilings include ~5-10% buffers above empirically observed Hardhat baselines to
 // absorb minor opcode repricings without causing noisy failures. The measured costs were:
 // createJob ≈ 200,263 gas, commitJob ≈ 124,695 gas, revealJob ≈ 35,367 gas,
-// finalizeJob ≈ 138,283 gas, raiseDispute ≈ 65,101 gas, resolveDispute ≈ 97,171 gas.
+// finalizeJob ≈ 170,606 gas, raiseDispute ≈ 89,435 gas, resolveDispute ≈ 134,393 gas.
 const CREATE_JOB_GAS_CEILING = 210000;
 const COMMIT_JOB_GAS_CEILING = 135000;
 const REVEAL_JOB_GAS_CEILING = 45000;
-const FINALIZE_JOB_GAS_CEILING = 150000;
-const RAISE_DISPUTE_GAS_CEILING = 70000;
-const RESOLVE_DISPUTE_GAS_CEILING = 110000;
+const FINALIZE_JOB_GAS_CEILING = 185000;
+const RAISE_DISPUTE_GAS_CEILING = 95000;
+const RESOLVE_DISPUTE_GAS_CEILING = 150000;
 
 function assertGasBelow(receipt, ceiling) {
   if (!GAS_CHECK_ENABLED) {
@@ -345,6 +345,7 @@ contract('JobRegistry', (accounts) => {
       },
       { from: deployer }
     );
+    await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.stakeManager.setFeeRecipient(this.feePool.address, { from: deployer });
     await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });
@@ -1161,6 +1162,7 @@ contract('JobRegistry', (accounts) => {
         },
         { from: deployer }
       );
+      await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
 
       const afterModules = await this.jobRegistry.configurationStatus();
       assert.isTrue(afterModules.modulesConfigured);
@@ -1200,6 +1202,7 @@ contract('JobRegistry', (accounts) => {
         },
         { from: deployer }
       );
+      await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
 
       await expectCustomError(
         this.jobRegistry.createJob('100', { from: client }),
@@ -1239,6 +1242,7 @@ contract('JobRegistry', (accounts) => {
           },
           { from: deployer }
         );
+        await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
         await this.jobRegistry.setTimings(3600, 3600, 7200, { from: deployer });
         await this.jobRegistry.setThresholds(6000, 1, 11, 250, 2000, { from: deployer });
         await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
