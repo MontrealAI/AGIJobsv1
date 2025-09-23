@@ -207,7 +207,13 @@ async function run() {
   });
 
   try {
-    truffle = spawn('npx', ['truffle', 'test'], { stdio: 'inherit' });
+    const nodeOptions = process.env.NODE_OPTIONS ? `${process.env.NODE_OPTIONS} ` : '';
+    const truffleEnv = {
+      ...process.env,
+      NODE_OPTIONS: `${nodeOptions}--require ts-node/register/transpile-only`,
+    };
+
+    truffle = spawn('npx', ['truffle', 'test'], { stdio: 'inherit', env: truffleEnv });
 
     truffle.on('error', (error) => {
       console.error(`Failed to run Truffle tests: ${error.message}`);

@@ -12,6 +12,7 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 import {JobRegistry} from "./JobRegistry.sol";
 import {WorkerActor} from "./testing/WorkerActor.sol";
 import {ClientActor} from "./testing/ClientActor.sol";
+import {ValidatorActor} from "./testing/ValidatorActor.sol";
 import {MockERC20} from "../libs/MockERC20.sol";
 import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 
@@ -32,11 +33,18 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     JobRegistry private immutable jobRegistry;
 
     WorkerActor[2] private workers;
+    ValidatorActor[2] private validators;
     ClientActor private immutable client;
 
     mapping(uint256 => bytes32) private jobSecrets;
     mapping(uint256 => address) private jobWorkers;
     mapping(uint256 => bool) private jobCompleted;
+    struct ValidatorCommitMetadata {
+        bool active;
+        bool approve;
+        bytes32 salt;
+    }
+    mapping(uint256 => mapping(address => ValidatorCommitMetadata)) internal validatorCommitMetadata;
 
     bool private slashBoundsViolated;
     uint256 private expectedFees;
@@ -73,6 +81,7 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         stakeManager.setJobRegistry(address(jobRegistry));
         stakeManager.setFeeRecipient(address(feePool));
         feePool.setJobRegistry(address(jobRegistry));
+        validationModule.setJobRegistry(address(jobRegistry));
         disputeModule.setJobRegistry(address(jobRegistry));
         reputationEngine.setJobRegistry(address(jobRegistry));
 
@@ -81,6 +90,10 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
             workers[i] = worker;
             stakeToken.transfer(address(worker), WORKER_INITIAL_BALANCE);
             worker.approveStakeManager(type(uint256).max);
+        }
+
+        for (uint256 i = 0; i < validators.length; ++i) {
+            validators[i] = new ValidatorActor(validationModule);
         }
 
         client = new ClientActor(jobRegistry);
@@ -136,6 +149,58 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
     /// @param jobId Identifier of the job being revealed.
     function fuzzReveal(uint256 jobId) public nonReentrant {
         _reveal(jobId);
+    }
+
+    /// @notice Commits a validator vote for a revealed job when possible.
+    /// @param validatorIndex Index of the validator actor used for the commit.
+    /// @param jobId Identifier of the job being validated.
+    /// @param approve Flag indicating the validator's vote.
+    /// @param salt Secret salt used to seed the commitment hash.
+    function fuzzValidatorCommit(
+        uint8 validatorIndex,
+        uint256 jobId,
+        bool approve,
+        bytes32 salt
+    ) external nonReentrant {
+        JobRegistry.Job memory job = _getJob(jobId);
+        if (job.state != JobRegistry.JobState.Revealed && job.state != JobRegistry.JobState.Disputed) {
+            return;
+        }
+
+        address validatorAddr = address(_validator(validatorIndex));
+        ValidatorCommitMetadata storage metadata = validatorCommitMetadata[jobId][validatorAddr];
+        if (metadata.active) {
+            return;
+        }
+
+        ValidatorActor validator = _validator(validatorIndex);
+        // slither-disable-next-line reentrancy-no-eth
+        try validator.commit(jobId, approve, salt) {
+            metadata.active = true;
+            metadata.approve = approve;
+            metadata.salt = salt;
+        } catch {
+            return;
+        }
+    }
+
+    /// @notice Reveals a validator vote that has been previously committed.
+    /// @param validatorIndex Index of the validator actor used for the reveal.
+    /// @param jobId Identifier of the job being validated.
+    function fuzzValidatorReveal(uint8 validatorIndex, uint256 jobId) external nonReentrant {
+        address validatorAddr = address(_validator(validatorIndex));
+        ValidatorCommitMetadata storage metadata = validatorCommitMetadata[jobId][validatorAddr];
+        if (!metadata.active) {
+            return;
+        }
+
+        ValidatorActor validator = _validator(validatorIndex);
+        // slither-disable-next-line reentrancy-no-eth
+        try validator.reveal(jobId, metadata.approve, metadata.salt) {
+            metadata.active = false;
+        } catch {
+            return;
+        }
     }
 
     function _reveal(uint256 jobId) private {
@@ -376,6 +441,10 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
         return workers[index % workers.length];
     }
 
+    function _validator(uint8 index) private view returns (ValidatorActor) {
+        return validators[index % validators.length];
+    }
+
     function _getJob(uint256 jobId) private view returns (JobRegistry.Job memory job) {
         (
             job.client,
@@ -397,6 +466,22 @@ contract EchidnaJobRegistryInvariants is ReentrancyGuard {
             thresholds.feeBps,
             thresholds.slashBpsMax
         ) = jobRegistry.thresholds();
+    }
+
+    function _jobRegistryInstance() internal view returns (JobRegistry) {
+        return jobRegistry;
+    }
+
+    function _validationModuleInstance() internal view returns (ValidationModule) {
+        return validationModule;
+    }
+
+    function _validatorAddress(uint256 index) internal view returns (address) {
+        return address(validators[index % validators.length]);
+    }
+
+    function _validatorCount() internal pure returns (uint256) {
+        return 2;
     }
 
     function _getTimings() private view returns (JobRegistry.Timings memory timings_) {

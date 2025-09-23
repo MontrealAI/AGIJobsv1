@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "../libs/ReentrancyGuard.sol";
 import {StakeManager} from "./StakeManager.sol";
 import {FeePool} from "./FeePool.sol";
 import {DisputeModule} from "./DisputeModule.sol";
+import {ValidationModule} from "./ValidationModule.sol";
 import {ReputationEngine} from "./ReputationEngine.sol";
 import {IdentityRegistry} from "./IdentityRegistry.sol";
 
@@ -378,6 +379,8 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Revealed);
 
+        ValidationModule(_modules.validation).beforeFinalize(jobId);
+
         uint256 feeAmount = (job.stakeAmount * thresholds.feeBps) / BPS_DENOMINATOR;
         if (feeAmount > job.stakeAmount) revert FeeBounds();
 
@@ -407,6 +410,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         if (!_isAuthorizedDisputeRaiser(job, msg.sender)) {
             revert UnauthorizedDisputeRaiser(jobId, msg.sender);
         }
+        ValidationModule(_modules.validation).beforeDispute(jobId);
         job.state = JobState.Disputed;
         DisputeModule(_modules.dispute).onDisputeRaised(jobId, msg.sender);
         emit JobDisputed(jobId, msg.sender);
@@ -428,6 +432,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         Job storage job = jobs[jobId];
         _requireState(job.state, JobState.Disputed);
 
+        ValidationModule(_modules.validation).beforeDisputeResolution(jobId);
         job.state = JobState.Finalized;
 
         StakeManager staking = StakeManager(_modules.staking);

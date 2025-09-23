@@ -52,6 +52,7 @@ contract('JobRegistry owner console helpers', (accounts) => {
       },
       { from: deployer }
     );
+    await this.validation.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.stakeManager.setJobRegistry(this.jobRegistry.address, { from: deployer });
     await this.stakeManager.setFeeRecipient(this.feePool.address, { from: deployer });
     await this.feePool.setJobRegistry(this.jobRegistry.address, { from: deployer });

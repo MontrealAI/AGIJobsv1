@@ -60,7 +60,9 @@
     "truffle": "^5.11.5",
     "truffle-flattener": "^1.6.0",
     "truffle-hardhat-coverage": "file:tools/truffle-hardhat-coverage",
-    "truffle-plugin-verify": "^0.6.0"
+    "truffle-plugin-verify": "^0.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
   },
   "lint-staged": {
     "*.{js,json,md,yml,yaml}": [
