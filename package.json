@@ -33,6 +33,7 @@
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
     "config:validate": "node scripts/validate-config.js",
     "config:params": "node scripts/edit-params.js",
+    "config:profiles": "node scripts/config-profile-manager.js",
     "identity:console": "npx truffle exec scripts/identity-registry-console.js --network ${NETWORK:-development}",
     "identity:emergency": "npx truffle exec scripts/identity-registry-emergency.js --network ${NETWORK:-development}",
     "prepare": "husky install",

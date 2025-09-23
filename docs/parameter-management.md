@@ -3,7 +3,9 @@
 This guide documents the `npm run config:params` workflow that governs the
 lifecycle timings and governance thresholds for the AGI Jobs protocol. It is
 written for non-technical operators as well as engineers who need precise
-validation semantics.
+validation semantics. Token, ENS, and registrar JSON profiles share the same
+guardrails via `npm run config:profiles`, which mirrors the options below while
+handling ENS namehashes and registrar domain hierarchies automatically.
 
 ## Overview
 
