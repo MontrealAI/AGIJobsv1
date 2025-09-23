@@ -43,6 +43,8 @@ cp .env.example .env
 # set MNEMONIC, RPCs, ETHERSCAN_API_KEY, GOV_SAFE, TIMELOCK_ADDR
 ```
 
+Run `npm run config:profiles -- --variant <dev|sepolia|mainnet>` for a guided editor that updates the token, ENS, and registrar JSON files under `config/`. The wizard supports interactive prompts, `--set section.field=value` overrides, automatic ENS namehash calculations, and Safe-ready backups so non-technical operators can adapt production profiles without touching raw JSON. Combine it with `--dry-run` to preview changes or `--no-interactive --set-json registrar.domains='[...]'` for automation pipelines.
+
 Edit configuration files under `config/` to match the deployment environment:
 
 - `config/agialpha.dev.json` / `config/agialpha.sepolia.json` / `config/agialpha.mainnet.json` — ERC-20 token parameters (address,
@@ -141,7 +143,7 @@ Edit configuration files under `config/` to match the deployment environment:
   broadcasting, and emits a dry-run transaction summary when `--execute` is omitted.
 - `npx hardhat identity-registry:emergency-status --network <network> --addresses '["0x..."]'` reports whether the provided
   addresses currently hold emergency privileges, while `npx hardhat identity-registry:set-emergency --network <network>
-  --allow '0x...,0x...' --plan-out ./plan.json` produces a Safe-ready sequence of `setEmergencyAccess` calls that can be
+--allow '0x...,0x...' --plan-out ./plan.json` produces a Safe-ready sequence of `setEmergencyAccess` calls that can be
   executed with `--execute --from 0xOwner` once reviewed.
 
 ### IdentityRegistry ENS console
