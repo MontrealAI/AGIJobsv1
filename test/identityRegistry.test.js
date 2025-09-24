@@ -15,7 +15,11 @@ contract('IdentityRegistry', (accounts) => {
   it('allows owner to configure ENS registry', async function () {
     const agentHash = web3.utils.randomHex(32);
     const clubHash = web3.utils.randomHex(32);
-    const alphaHash = web3.utils.randomHex(32);
+    const alphaLabel = web3.utils.keccak256('alpha');
+    const alphaHash = web3.utils.soliditySha3(
+      { type: 'bytes32', value: clubHash },
+      { type: 'bytes32', value: alphaLabel }
+    );
     await this.registry.configureEns(stranger, worker, agentHash, clubHash, alphaHash, true, { from: owner });
     assert.strictEqual(await this.registry.ensRegistry(), stranger);
     assert.strictEqual(await this.registry.ensNameWrapper(), worker);
@@ -45,6 +49,18 @@ contract('IdentityRegistry', (accounts) => {
         }
       ),
       'Ownable: caller is not the owner'
+    );
+  });
+
+  it('requires the base roots to be configured before alpha overrides', async function () {
+    await expectRevert(
+      this.registry.setAlphaClubRoot(web3.utils.randomHex(32), false, { from: owner }),
+      'IdentityRegistry: club root'
+    );
+
+    await expectRevert(
+      this.registry.setAlphaAgentRoot(web3.utils.randomHex(32), false, { from: owner }),
+      'IdentityRegistry: agent root'
     );
   });
 
@@ -150,6 +166,22 @@ contract('IdentityRegistry', (accounts) => {
     );
   });
 
+  it('requires the alpha club hash to track the club namespace', async function () {
+    const agentHash = web3.utils.randomHex(32);
+    const clubHash = web3.utils.randomHex(32);
+    const mismatchedAlpha = web3.utils.soliditySha3(
+      { type: 'bytes32', value: clubHash },
+      { type: 'bytes32', value: web3.utils.keccak256('beta') }
+    );
+
+    await expectRevert(
+      this.registry.configureEns(stranger, worker, agentHash, clubHash, mismatchedAlpha, false, {
+        from: owner,
+      }),
+      'IdentityRegistry: alpha club hash'
+    );
+  });
+
   it('allows the owner to update the agent root hash and enforces the alpha alias', async function () {
     const initialAgent = web3.utils.keccak256('agent-root');
     const club = web3.utils.keccak256('club-root');
@@ -205,7 +237,10 @@ contract('IdentityRegistry', (accounts) => {
   it('allows the owner to configure the alpha club root and toggle', async function () {
     const agent = web3.utils.keccak256('agent-root');
     const club = web3.utils.keccak256('club-root');
-    const alphaClub = web3.utils.keccak256('alpha-club-root');
+    const alphaClub = web3.utils.soliditySha3(
+      { type: 'bytes32', value: club },
+      { type: 'bytes32', value: web3.utils.keccak256('alpha') }
+    );
 
     await this.registry.configureEns(stranger, worker, agent, club, alphaClub, true, { from: owner });
 
@@ -219,6 +254,11 @@ contract('IdentityRegistry', (accounts) => {
     await expectRevert(
       this.registry.setAlphaClubRoot('0x'.padEnd(66, '0'), true, { from: owner }),
       'IdentityRegistry: alpha hash'
+    );
+
+    await expectRevert(
+      this.registry.setAlphaClubRoot(web3.utils.randomHex(32), false, { from: owner }),
+      'IdentityRegistry: alpha club hash'
     );
 
     await expectRevert(
@@ -251,14 +291,17 @@ contract('IdentityRegistry', (accounts) => {
     assert.isFalse(await this.registry.isClubNode(web3.utils.randomHex(32)));
   });
 
-  it('allows the owner to override the alpha agent alias configuration', async function () {
+  it('allows the owner to toggle the alpha agent alias while enforcing derivation', async function () {
     const agent = web3.utils.keccak256('agent-root');
     const club = web3.utils.keccak256('club-root');
     await this.registry.configureEns(stranger, worker, agent, club, '0x'.padEnd(66, '0'), false, { from: owner });
 
-    const customAlias = web3.utils.randomHex(32);
-    await this.registry.setAlphaAgentRoot(customAlias, true, { from: owner });
-    assert.strictEqual(await this.registry.alphaAgentRootHash(), customAlias);
+    const expectedAlias = web3.utils.soliditySha3(
+      { type: 'bytes32', value: agent },
+      { type: 'bytes32', value: web3.utils.keccak256('alpha') }
+    );
+    await this.registry.setAlphaAgentRoot(expectedAlias, true, { from: owner });
+    assert.strictEqual(await this.registry.alphaAgentRootHash(), expectedAlias);
     assert.isTrue(await this.registry.alphaAgentEnabled());
 
     await this.registry.setAlphaAgentRoot('0x'.padEnd(66, '0'), false, { from: owner });
@@ -278,6 +321,11 @@ contract('IdentityRegistry', (accounts) => {
 
     await expectRevert(
       this.registry.setAlphaAgentRoot('0x'.padEnd(66, '0'), true, { from: owner }),
+      'IdentityRegistry: alpha alias'
+    );
+
+    await expectRevert(
+      this.registry.setAlphaAgentRoot(web3.utils.randomHex(32), true, { from: owner }),
       'IdentityRegistry: alpha alias'
     );
   });

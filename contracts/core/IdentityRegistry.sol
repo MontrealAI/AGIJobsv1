@@ -40,6 +40,7 @@ contract IdentityRegistry is Ownable {
     string private constant _ENS_UNCONFIGURED = "IdentityRegistry: ENS";
     string private constant _AGENT_ROOT_UNCONFIGURED = "IdentityRegistry: agent root";
     string private constant _CLUB_ROOT_UNCONFIGURED = "IdentityRegistry: club root";
+    string private constant _ALPHA_CLUB_ALIAS_MISMATCH = "IdentityRegistry: alpha club hash";
 
     /// @notice Configures the ENS registry, NameWrapper and root hashes for access control.
     /// @param registry Address of the ENS registry used for verification.
@@ -61,6 +62,9 @@ contract IdentityRegistry is Ownable {
         require(clubHash != bytes32(0), "IdentityRegistry: club hash");
         if (alphaClubEnabled) {
             require(alphaClubHash != bytes32(0), "IdentityRegistry: alpha hash");
+        }
+        if (alphaClubHash != bytes32(0)) {
+            require(alphaClubHash == _deriveAlphaClubRoot(clubHash), _ALPHA_CLUB_ALIAS_MISMATCH);
         }
 
         ensRegistry = registry;
@@ -111,8 +115,13 @@ contract IdentityRegistry is Ownable {
     /// @param alphaClubHash Node hash representing the alpha club subdomain.
     /// @param enabled Boolean flag to allow alpha root based identities.
     function setAlphaClubRoot(bytes32 alphaClubHash, bool enabled) external onlyOwner {
+        bytes32 clubRoot = clubRootHash;
+        require(clubRoot != bytes32(0), _CLUB_ROOT_UNCONFIGURED);
         if (enabled) {
             require(alphaClubHash != bytes32(0), "IdentityRegistry: alpha hash");
+        }
+        if (alphaClubHash != bytes32(0)) {
+            require(alphaClubHash == _deriveAlphaClubRoot(clubRoot), _ALPHA_CLUB_ALIAS_MISMATCH);
         }
         alphaClubRootHash = alphaClubHash;
         alphaEnabled = enabled;
@@ -123,8 +132,13 @@ contract IdentityRegistry is Ownable {
     /// @param alphaAgentHash ENS node hash recognised as equivalent to the agent root.
     /// @param enabled Boolean flag indicating whether the alias should be honoured.
     function setAlphaAgentRoot(bytes32 alphaAgentHash, bool enabled) external onlyOwner {
+        bytes32 root = agentRootHash;
+        require(root != bytes32(0), _AGENT_ROOT_UNCONFIGURED);
         if (enabled) {
             require(alphaAgentHash != bytes32(0), "IdentityRegistry: alpha alias");
+        }
+        if (alphaAgentHash != bytes32(0)) {
+            require(alphaAgentHash == _deriveAlphaAgentRoot(root), "IdentityRegistry: alpha alias");
         }
         _setAlphaAgentRoot(alphaAgentHash, enabled);
     }
@@ -249,6 +263,10 @@ contract IdentityRegistry is Ownable {
     }
 
     function _deriveAlphaAgentRoot(bytes32 root) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(root, _ALPHA_LABEL_HASH));
+    }
+
+    function _deriveAlphaClubRoot(bytes32 root) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(root, _ALPHA_LABEL_HASH));
     }
 
