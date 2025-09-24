@@ -10,5 +10,5 @@
   "alphaAgentEnabled": true,
   "alphaClubRoot": "alpha.club.agi.eth",
   "alphaClubRootHash": "0x6487f659ec6f3fbd424b18b685728450d2559e4d68768393f9c689b2b6e5405e",
-  "alphaEnabled": false
+  "alphaEnabled": true
 }

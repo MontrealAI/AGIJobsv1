@@ -48,16 +48,14 @@ pre-flight checklist before running against the live network.
    the same console session to confirm every pausable module reports
    `paused() === false` post-migration and rehearse the Safe/timelock steps for
    invoking (and later clearing) a pause if an emergency response is required.
-6. **Alpha Club activation plan.** Decide whether the production launch will
-   flip `alphaEnabled` to `true` via `IdentityRegistry.configureEns`. The
-   configuration JSON already embeds the `alphaClubRootHash`, so the Safe only
-   needs to pass the stored value when calling `configureEns(alphaClubRootHash,
-   true)`. While the flag remains `false`, `IdentityRegistry.isClubAddress`
-   returns `false` for every alpha derivation and `clubNodeOwner` will revert,
-   ensuring premium identities stay inert until governance approves them. Capture
-   the decision, execution transaction hash, and post-action `alphaEnabled()`
-   result in this log once finalized so downstream integrators know whether
-   premium subdomains are live.
+6. **Alpha Club continuity.** The configuration JSON pins `alphaEnabled` to
+   `true` so premium identities remain live immediately after deployment. If
+   governance needs to pause the tier, call `configureEns(alphaClubRootHash,
+   false)` from the Safe and record the execution details here alongside the
+   follow-up transaction that restores the flag. While disabled,
+   `IdentityRegistry.isClubAddress` returns `false` for every alpha derivation
+   and `clubNodeOwner` reverts, so documenting both the suspension and the
+   reenabling transaction keeps downstream integrators informed.
 
 Update this section with transaction hashes, verification links, and console
 outputs once the live deployment completes.
@@ -84,7 +82,7 @@ Copy values directly from `artifacts-public/addresses/mainnet.json` after the li
 
 | Timestamp (UTC) | Action | Hash / Safe execution link | Notes |
 | --------------- | ------ | -------------------------- | ----- |
-| `<pending>` | `configureEns(alphaClubRootHash, true)` | `<safe-transaction>` | Flip `alphaEnabled` when the Alpha Club launch is live. |
+| `<pending>` | `configureEns(alphaClubRootHash, false)` | `<safe-transaction>` | Document any temporary suspension of `alphaEnabled` and pair it with the follow-up enable transaction. |
 | `<pending>` | `pause()` / `unpause()` drill | `<safe-transaction>` | Record rehearsal results or production incident response. |
 
 
