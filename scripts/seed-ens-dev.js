@@ -46,6 +46,8 @@ module.exports = async function (callback) {
     const agiNode = namehash('agi.eth');
     const agentNode = namehash('agent.agi.eth');
     const clubNode = namehash('club.agi.eth');
+    const alphaAgentNode = namehash('alpha.agent.agi.eth');
+    const alphaClubNode = namehash('alpha.club.agi.eth');
 
     const setSubnodeOwner = async (parentNode, label, newOwner = owner, domainName = label) => {
       await registry.setSubnodeOwner(parentNode, labelhash(label), newOwner, { from: owner });
@@ -56,8 +58,12 @@ module.exports = async function (callback) {
     await setSubnodeOwner(ethNode, 'agi', owner, 'agi.eth');
     await setSubnodeOwner(agiNode, 'agent', owner, 'agent.agi.eth');
     await setSubnodeOwner(agiNode, 'club', owner, 'club.agi.eth');
+    await setSubnodeOwner(agentNode, 'alpha', owner, 'alpha.agent.agi.eth');
+    await setSubnodeOwner(clubNode, 'alpha', owner, 'alpha.club.agi.eth');
     await setSubnodeOwner(agentNode, 'alice', accounts[1], 'alice.agent.agi.eth');
+    await setSubnodeOwner(alphaAgentNode, 'alice', accounts[1], 'alice.alpha.agent.agi.eth');
     await setSubnodeOwner(clubNode, 'validator', accounts[2], 'validator.club.agi.eth');
+    await setSubnodeOwner(alphaClubNode, 'vip', accounts[2], 'vip.alpha.club.agi.eth');
 
     const ensConfigPath = configPath('ens', variant);
     const ensConfig = readConfig('ens', variant);
@@ -66,6 +72,12 @@ module.exports = async function (callback) {
     ensConfig.clubRoot = 'club.agi.eth';
     ensConfig.agentRootHash = namehash('agent.agi.eth');
     ensConfig.clubRootHash = namehash('club.agi.eth');
+    ensConfig.alphaAgentRoot = 'alpha.agent.agi.eth';
+    ensConfig.alphaAgentRootHash = alphaAgentNode;
+    ensConfig.alphaAgentEnabled = true;
+    ensConfig.alphaClubRoot = 'alpha.club.agi.eth';
+    ensConfig.alphaClubRootHash = alphaClubNode;
+    ensConfig.alphaEnabled = true;
 
     fs.writeFileSync(ensConfigPath, `${JSON.stringify(ensConfig, null, 2)}\n`);
 

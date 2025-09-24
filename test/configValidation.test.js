@@ -27,6 +27,8 @@ contract('Configuration validation', () => {
       const ensMainnetPath = path.join(tmpDir, 'ens.mainnet.json');
       const ensMainnet = JSON.parse(fs.readFileSync(ensMainnetPath, 'utf8'));
       ensMainnet.agentRootHash = '0x1234';
+      ensMainnet.alphaAgentRoot = 'vip.agent.agi.eth';
+      ensMainnet.alphaClubRootHash = '0x1234';
       fs.writeFileSync(ensMainnetPath, JSON.stringify(ensMainnet, null, 2));
 
       const paramsPath = path.join(tmpDir, 'params.json');
@@ -69,6 +71,10 @@ contract('Configuration validation', () => {
       assert.isTrue(
         errors.some((message) => message.includes('ens.mainnet.json')),
         'should flag ENS hash mismatch'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alphaAgentRoot must equal alpha.agent.agi.eth')),
+        'should enforce alpha agent alias consistency'
       );
       assert.isTrue(
         errors.some((message) => message.includes('params.json')),

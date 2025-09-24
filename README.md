@@ -231,17 +231,17 @@ Edit configuration files under `config/` to match the deployment environment:
 
 ### Alpha Club activation
 
-Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.
+Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance still controls whether the `IdentityRegistry` treats the alpha namespace as officially active via the `alphaEnabled` flag, which defaults to `true` so `*.alpha.club.agi.eth` members are recognised as first-class club identities immediately.
 
-- **Before launch.** Keep `alphaEnabled === false` until the Alpha Club landing page and onboarding flow are live. During this staging window, avoid advertising the tier publicly—the registrar still blocks unfunded attempts and the on-chain registry now rejects alpha identities, so the namespace remains inert until governance flips the flag. Downstream systems calling `isClubAddress` will receive `false`, and `clubNodeOwner` reverts for alpha derivations while the tier is inactive.
-- **Flip the switch.** When the program launches, execute `configureEns(alphaClubRootHash, /*alphaEnabled=*/true)` from the Safe. The call emits an event and updates `alphaEnabled()` so downstream relays, analytics, and subgraph indexers can record the activation moment. Capture the transaction hash and resulting state in `docs/mainnet-deployment-simulation.md` for posterity.
-- **Verify on-chain state.** Post-activation, confirm the registry reports the expected status:
+- **Live by default.** With `alphaEnabled === true` baked into the configuration, `IdentityRegistry.isClubAddress` accepts the alpha branch as equivalent to the base `club.agi.eth` namespace on every supported network. This keeps the alpha alias in sync with existing club integrations and honours the owners of `*.alpha.club.agi.eth` from the moment contracts deploy.
+- **Temporary staging.** If you need to pause the premium tier for maintenance, execute `configureEns(alphaClubRootHash, /*alphaEnabled=*/false)` from the Safe. The call emits an event and updates `alphaEnabled()` so downstream relays, analytics, and subgraph indexers can record when the alias is suspended. Re-run the helper with `true` to restore the production setting.
+- **Verify on-chain state.** Post-adjustment, confirm the registry reports the expected status:
 
   ```javascript
   IdentityRegistry.deployed().then(async (registry) => console.log(await registry.alphaEnabled()));
   ```
 
-  The ENS ownership rule means `alice.alpha.club.agi.eth` already counts as a valid club identity when the label is owned by `alice`, but toggling the flag gives integrators an explicit signal that premium identities are supported.
+  The ENS ownership rule means `alice.alpha.club.agi.eth` already counts as a valid club identity when the label is owned by `alice`, but the flag provides an explicit signal whenever governance temporarily disables or reinstates the tier.
 
 Sepolia deployments now read from their own configuration files, so populate `config/agialpha.sepolia.json` and
 `config/ens.sepolia.json` with the staging token and ENS registry addresses before migrating to that network.

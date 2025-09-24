@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { ethers } = require('ethers');
 const { hash: namehash } = require('eth-ens-namehash');
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -10,6 +11,7 @@ const ENS_MAINNET_NAME_WRAPPER = '0xD4416b13d2b3a9aBae7AcD5D6C2BbDBE25686401';
 const CLUB_DOMAIN_NAME = 'club.agi.eth';
 const CLUB_ROOT_KEY = 'clubRootHash';
 const ALPHA_LABEL = 'alpha';
+const ALPHA_LABEL_HASH = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(ALPHA_LABEL));
 const ALPHA_CLUB_PRICE_WEI = BigInt('5000000000000000000000'); // 5,000 AGIALPHA @ 18 decimals
 const ALPHA_CLUB_PRICE_HUMAN = '5,000 AGIALPHA';
 const HEX_32_REGEX = /^0x[0-9a-fA-F]{64}$/;
@@ -169,6 +171,114 @@ function validateEnsRoot(errors, fileLabel, data, rootKey, hashKey, { required }
   }
 }
 
+function deriveChildNode(parentHash, labelHash) {
+  if (typeof parentHash !== 'string' || !HEX_32_REGEX.test(parentHash)) {
+    return null;
+  }
+
+  try {
+    return ethers.utils.solidityKeccak256(['bytes32', 'bytes32'], [parentHash, labelHash]);
+  } catch (_) {
+    return null;
+  }
+}
+
+function validateAlphaAliasConfig(
+  errors,
+  fileLabel,
+  data,
+  { baseRootKey, baseHashKey, aliasRootKey, aliasHashKey, enabledKey }
+) {
+  const enabledRaw = data[enabledKey];
+  let enabled = false;
+
+  if (enabledRaw !== null && enabledRaw !== undefined) {
+    if (typeof enabledRaw !== 'boolean') {
+      addError(errors, fileLabel, `${enabledKey} must be a boolean when specified`);
+    } else {
+      enabled = enabledRaw;
+    }
+  }
+
+  const aliasRootRaw = data[aliasRootKey];
+  const aliasHashRaw = data[aliasHashKey];
+  const aliasRootProvided = aliasRootRaw !== null && aliasRootRaw !== undefined;
+  const aliasHashProvided = aliasHashRaw !== null && aliasHashRaw !== undefined;
+
+  let aliasRoot = null;
+  if (aliasRootProvided) {
+    if (typeof aliasRootRaw !== 'string' || aliasRootRaw.trim().length === 0) {
+      addError(errors, fileLabel, `${aliasRootKey} must be a non-empty string when specified`);
+    } else {
+      aliasRoot = aliasRootRaw.trim();
+    }
+  }
+
+  let aliasHash = null;
+  if (aliasHashProvided) {
+    if (typeof aliasHashRaw !== 'string' || !HEX_32_REGEX.test(aliasHashRaw)) {
+      addError(errors, fileLabel, `${aliasHashKey} must be a 32-byte hex string when specified`);
+    } else {
+      aliasHash = aliasHashRaw;
+    }
+  }
+
+  const aliasConfigRequired = aliasRootProvided || aliasHashProvided || enabled;
+
+  if (!aliasConfigRequired) {
+    return;
+  }
+
+  const baseRootRaw = data[baseRootKey];
+  const baseRoot =
+    typeof baseRootRaw === 'string' && baseRootRaw.trim().length > 0
+      ? baseRootRaw.trim()
+      : null;
+
+  if (!baseRoot) {
+    addError(errors, fileLabel, `${aliasRootKey} requires ${baseRootKey} to be set`);
+    return;
+  }
+
+  const expectedAliasName = `alpha.${baseRoot.toLowerCase()}`;
+
+  if (!aliasRoot) {
+    addError(errors, fileLabel, `${aliasRootKey} must be provided when ${aliasHashKey} or ${enabledKey} is set`);
+  } else if (aliasRoot.toLowerCase() !== expectedAliasName) {
+    addError(
+      errors,
+      fileLabel,
+      `${aliasRootKey} must equal ${expectedAliasName} to mirror ${baseRootKey}`
+    );
+  }
+
+  if (!aliasHash) {
+    addError(errors, fileLabel, `${aliasHashKey} must be provided when ${aliasRootKey} or ${enabledKey} is set`);
+    return;
+  }
+
+  const expectedHashFromName = namehash((aliasRoot || expectedAliasName).toLowerCase());
+  if (!equalsIgnoreCase(expectedHashFromName, aliasHash)) {
+    addError(
+      errors,
+      fileLabel,
+      `${aliasHashKey} must match namehash(${aliasRoot || expectedAliasName})`
+    );
+  }
+
+  const baseHashRaw = data[baseHashKey];
+  if (typeof baseHashRaw === 'string' && HEX_32_REGEX.test(baseHashRaw)) {
+    const derivedHash = deriveChildNode(baseHashRaw, ALPHA_LABEL_HASH);
+    if (derivedHash && !equalsIgnoreCase(derivedHash, aliasHash)) {
+      addError(
+        errors,
+        fileLabel,
+        `${aliasHashKey} must equal solidityKeccak256(${baseHashKey}, keccak256("${ALPHA_LABEL}"))`
+      );
+    }
+  }
+}
+
 function validateEnsConfig(errors, fileLabel, data, { variant }) {
   if (!data || typeof data !== 'object') {
     addError(errors, fileLabel, 'configuration must be an object');
@@ -215,17 +325,20 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
     required: requireRoots,
   });
 
-  let alphaEnabled = false;
-  if (data.alphaEnabled !== null && data.alphaEnabled !== undefined) {
-    if (typeof data.alphaEnabled !== 'boolean') {
-      addError(errors, fileLabel, 'alphaEnabled must be a boolean when specified');
-    } else {
-      alphaEnabled = data.alphaEnabled;
-    }
-  }
+  validateAlphaAliasConfig(errors, fileLabel, data, {
+    baseRootKey: 'agentRoot',
+    baseHashKey: 'agentRootHash',
+    aliasRootKey: 'alphaAgentRoot',
+    aliasHashKey: 'alphaAgentRootHash',
+    enabledKey: 'alphaAgentEnabled',
+  });
 
-  validateEnsRoot(errors, fileLabel, data, 'alphaClubRoot', 'alphaClubRootHash', {
-    required: alphaEnabled,
+  validateAlphaAliasConfig(errors, fileLabel, data, {
+    baseRootKey: 'clubRoot',
+    baseHashKey: 'clubRootHash',
+    aliasRootKey: 'alphaClubRoot',
+    aliasHashKey: 'alphaClubRootHash',
+    enabledKey: 'alphaEnabled',
   });
 }
 
