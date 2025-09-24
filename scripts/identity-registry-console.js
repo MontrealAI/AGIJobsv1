@@ -35,6 +35,8 @@ function printHelp() {
   console.log('  --ens.clubRoot <ens name>  | --ens.clubRootHash <bytes32>');
   console.log('  --ens.alphaClubRoot <ens name> | --ens.alphaClubRootHash <bytes32>');
   console.log('  --ens.alphaEnabled[=true|false]');
+  console.log('  --ens.alphaAgentRoot <ens name> | --ens.alphaAgentRootHash <bytes32>');
+  console.log('  --ens.alphaAgentEnabled[=true|false]');
 }
 
 module.exports = async function (callback) {
@@ -147,24 +149,33 @@ module.exports = async function (callback) {
       return;
     }
 
-    const callData = identity.contract.methods.configureEns(...plan.args).encodeABI();
+    const transactions = [];
+    if (plan.configureChanged) {
+      const callData = identity.contract.methods.configureEns(...plan.args).encodeABI();
+      transactions.push({
+        to: identity.address,
+        from: sender,
+        data: callData,
+        value: '0',
+        description: 'IdentityRegistry.configureEns',
+        arguments: plan.args,
+      });
+    }
+    if (plan.alphaAgent && plan.alphaAgent.changed) {
+      const callData = identity.contract.methods.setAlphaAgentRoot(...plan.alphaAgent.args).encodeABI();
+      transactions.push({
+        to: identity.address,
+        from: sender,
+        data: callData,
+        value: '0',
+        description: 'IdentityRegistry.setAlphaAgentRoot',
+        arguments: plan.alphaAgent.args,
+      });
+    }
 
     if (!shouldExecute) {
       console.log('\nDry run: transaction not broadcast.');
-      console.log(
-        JSON.stringify(
-          {
-            to: identity.address,
-            from: sender,
-            data: callData,
-            value: '0',
-            description: 'IdentityRegistry.configureEns',
-            arguments: plan.args,
-          },
-          null,
-          2
-        )
-      );
+      console.log(JSON.stringify({ transactions }, null, 2));
       callback();
       return;
     }
@@ -173,8 +184,14 @@ module.exports = async function (callback) {
       throw new Error(`Sender ${sender} is not the IdentityRegistry owner (${owner}).`);
     }
 
-    const receipt = await identity.configureEns(...plan.args, { from: sender });
-    console.log(`\nTransaction broadcast. Hash: ${receipt.tx}`);
+    if (plan.configureChanged) {
+      const receipt = await identity.configureEns(...plan.args, { from: sender });
+      console.log(`\nconfigureEns broadcast. Hash: ${receipt.tx}`);
+    }
+    if (plan.alphaAgent && plan.alphaAgent.changed) {
+      const receipt = await identity.setAlphaAgentRoot(...plan.alphaAgent.args, { from: sender });
+      console.log(`Alpha agent alias update broadcast. Hash: ${receipt.tx}`);
+    }
     callback();
   } catch (error) {
     callback(error);

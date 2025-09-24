@@ -69,6 +69,7 @@ const assignHash = (rootKey, hashKey) => {
 assignHash('agentRoot', 'agentRootHash');
 assignHash('clubRoot', 'clubRootHash');
 assignHash('alphaClubRoot', 'alphaClubRootHash');
+assignHash('alphaAgentRoot', 'alphaAgentRootHash');
 
 fs.writeFileSync(targetPath, `${JSON.stringify(config, null, 2)}\n`);
 console.log(`Updated ENS namehashes in ${targetPath}`);
