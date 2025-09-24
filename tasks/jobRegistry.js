@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const { task, types } = require('hardhat/config');
 
 const {
@@ -9,6 +7,8 @@ const {
   buildOwnerTxPlan,
   formatStatusLines,
   formatTxPlanLines,
+  buildOwnerCallSummary,
+  writeOwnerCallSummary,
 } = require('../scripts/lib/job-registry-owner');
 const {
   buildSetPlans,
@@ -69,32 +69,6 @@ function printLines(lines) {
   lines.forEach((line) => {
     console.log(line);
   });
-}
-
-function buildCallSummary({ plan, callData, registryAddress, sender }) {
-  return {
-    action: plan.action,
-    method: plan.method,
-    args: serializeForJson(plan.args),
-    metadata: serializeForJson(plan.metadata),
-    call: {
-      to: registryAddress,
-      data: callData,
-      value: '0',
-      from: sender || null,
-    },
-  };
-}
-
-function maybeWriteSummary(summary, outputPath) {
-  if (!outputPath) {
-    return null;
-  }
-
-  const resolvedPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  fs.writeFileSync(resolvedPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
-  return resolvedPath;
 }
 
 function ensurePlainObject(label, value) {
@@ -222,10 +196,13 @@ async function handleOwnerAction(hre, args, action) {
   const formatted = formatTxPlanLines(plan, callData, { to: registry.address });
   printLines(formatted);
 
-  const summary = buildCallSummary({ plan, callData, registryAddress: registry.address, sender });
+  const summary = buildOwnerCallSummary(plan, callData, {
+    to: registry.address,
+    from: sender,
+  });
 
   if (args.planOut) {
-    const writtenPath = maybeWriteSummary(summary, args.planOut);
+    const writtenPath = writeOwnerCallSummary(summary, args.planOut);
     console.log(`Plan summary written to ${writtenPath}`);
   }
 
