@@ -173,6 +173,24 @@ Edit configuration files under `config/` to match the deployment environment:
   after confirming the plan. The console validates inputs, prints checksum-formatted addresses, and logs every transaction hash
   when executing multiple steps sequentially.
 
+### StakeManager owner console
+
+- `npm run stake:console -- --network <network> status` mirrors the JobRegistry owner tooling for the staking contract so
+  operators can audit the configured JobRegistry address, fee recipient, pause state, and stake token metadata in one view.
+- `npm run stake:console -- --network <network> set-job-registry --job-registry 0xRegistry --plan-out ./plan.json` produces a
+  Safe-ready transaction when first wiring the registry. Once the StakeManager is paused, switch to `update-job-registry` to
+  migrate governance to a replacement deployment; the console refuses to broadcast if the contract is not paused or if the
+  address is unchanged.
+- `npm run stake:console -- --network <network> set-fee-recipient --fee-recipient 0xFeeSafe --execute --from 0xOwner` routes
+  slashed stake to the desired multisig. The script validates checksum formatting, prints the raw calldata for manual review,
+  and writes JSON plans via `--plan-out` so non-technical signers can inspect payloads before broadcasting.
+- `npm run stake:console -- --network <network> pause` and `unpause` expose the protocol-wide pause controls used during
+  incident response. The helper short-circuits when the StakeManager is already in the desired state so operators avoid wasting
+  gas on redundant transactions.
+- `npm run stake:console -- --network <network> emergency-release --account 0xWorker --amount-human 125.5` converts human
+  amounts (or raw wei via `--amount`) into the integer value expected on-chain, enforces that only the owner can broadcast,
+  and reports the decoded token quantity in the Safe-ready plan summary alongside the encoded calldata.
+
 ### Alpha Club activation
 
 Premium `alpha.club.agi.eth` identities ship pre-configured in `config/ens.*.json`. The registrar enforces the 5,000 `$AGIALPHA` price floor automatically, so only funded registrations can mint these labels. `config/registrar.mainnet.json` now fixes both the minimum and maximum `alpha` label price at exactly 5,000 tokens, and `npm run registrar:verify` fails if the deployed `ForeverSubdomainRegistrar` drifts above that ceiling. Governance controls whether the `IdentityRegistry` marks the alpha namespace as officially active via the `alphaEnabled` flag that `configureEns` manages.

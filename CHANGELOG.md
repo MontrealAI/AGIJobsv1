@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
   sequential broadcast support for multi-step updates.
 - Hardhat emergency management tasks (`identity-registry:emergency-status` / `identity-registry:set-emergency`) that surface
   allow-list drift, generate multisig payloads, and enforce owner-only execution before broadcasting.
+- StakeManager owner console (`npm run stake:console`) with pause controls, registry wiring helpers, Safe-ready plan exports,
+  and human-readable emergency release tooling for non-technical operators.
 
 ## [1.1.0] - 2025-02-21
 
