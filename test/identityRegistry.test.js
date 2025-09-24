@@ -197,6 +197,25 @@ contract('IdentityRegistry', (accounts) => {
       assert.strictEqual(await this.registry.agentNodeOwner([workerLabel]), worker);
     });
 
+    it('treats alpha agent namespaces as equivalent to the primary agent root', async function () {
+      const alphaLabel = labelhash('alpha');
+      const workerLabel = labelhash('vip');
+      const alphaAgentRoot = web3.utils.soliditySha3(
+        { type: 'bytes32', value: this.agentRoot },
+        { type: 'bytes32', value: alphaLabel }
+      );
+
+      assert.isTrue(await this.registry.isAgentNode(this.agentRoot));
+      assert.isTrue(await this.registry.isAgentNode(alphaAgentRoot));
+
+      await this.ens.setSubnodeOwner(this.agentRoot, alphaLabel, owner, { from: owner });
+      await this.ens.setSubnodeOwner(alphaAgentRoot, workerLabel, worker, { from: owner });
+
+      assert.isTrue(await this.registry.isAgentAddress(worker, [alphaLabel, workerLabel]));
+      assert.isFalse(await this.registry.isAgentAddress(stranger, [alphaLabel, workerLabel]));
+      assert.strictEqual(await this.registry.agentNodeOwner([alphaLabel, workerLabel]), worker);
+    });
+
     it('resolves wrapped ownership via the NameWrapper', async function () {
       const workerLabel = labelhash('builder');
       await this.ens.setSubnodeOwner(this.agentRoot, workerLabel, this.wrapper.address, { from: owner });
@@ -254,6 +273,14 @@ contract('IdentityRegistry', (accounts) => {
       assert.isFalse(await this.registry.isClubAddress(worker, [this.alphaLabel, memberLabel]));
 
       assert.strictEqual(await this.registry.clubNodeOwner([this.alphaLabel, memberLabel]), client);
+    });
+
+    it('recognizes the alpha club root as an authorized club node', async function () {
+      await this.ens.setSubnodeOwner(this.clubRoot, this.alphaLabel, owner, { from: owner });
+
+      assert.isTrue(await this.registry.isClubNode(this.clubRoot));
+      assert.isTrue(await this.registry.isClubNode(this.alphaRoot));
+      assert.isFalse(await this.registry.isClubNode(web3.utils.randomHex(32)));
     });
 
     it('reverts when ENS registry is not configured', async function () {

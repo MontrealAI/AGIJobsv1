@@ -27,6 +27,8 @@ contract IdentityRegistry is Ownable {
 
     mapping(address => bool) private _emergencyAllowList;
 
+    bytes32 private constant _ALPHA_LABEL_HASH = keccak256("alpha");
+
     string private constant _ENS_UNCONFIGURED = "IdentityRegistry: ENS";
     string private constant _AGENT_ROOT_UNCONFIGURED = "IdentityRegistry: agent root";
     string private constant _CLUB_ROOT_UNCONFIGURED = "IdentityRegistry: club root";
@@ -82,14 +84,27 @@ contract IdentityRegistry is Ownable {
     /// @param nodeHash ENS node hash being validated.
     /// @return True if the hash matches the configured agent root.
     function isAgentNode(bytes32 nodeHash) external view returns (bool) {
-        return nodeHash == agentRootHash;
+        bytes32 root = agentRootHash;
+        if (nodeHash == root) {
+            return true;
+        }
+        if (root != bytes32(0) && nodeHash == _deriveAlphaAgentRoot(root)) {
+            return true;
+        }
+        return false;
     }
 
     /// @notice Checks whether a provided ENS node hash belongs to the configured club root.
     /// @param nodeHash ENS node hash being validated.
     /// @return True if the hash matches the configured club root.
     function isClubNode(bytes32 nodeHash) external view returns (bool) {
-        return nodeHash == clubRootHash;
+        if (nodeHash == clubRootHash) {
+            return true;
+        }
+        if (nodeHash == alphaClubRootHash && alphaClubRootHash != bytes32(0)) {
+            return true;
+        }
+        return false;
     }
 
     /// @notice Computes the ENS node derived from the configured agent root and the provided labels.
@@ -167,6 +182,10 @@ contract IdentityRegistry is Ownable {
                 traversedAlpha = true;
             }
         }
+    }
+
+    function _deriveAlphaAgentRoot(bytes32 root) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(root, _ALPHA_LABEL_HASH));
     }
 
     function _ownsNode(address account, bytes32 node) private view returns (bool) {
