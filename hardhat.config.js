@@ -2,6 +2,8 @@ require('dotenv').config();
 require('@nomiclabs/hardhat-truffle5');
 require('solidity-coverage');
 require('./tasks/jobRegistry');
+require('./tasks/feePool');
+require('./tasks/stakeManager');
 
 const { MNEMONIC, RPC_SEPOLIA, RPC_MAINNET } = process.env;
 

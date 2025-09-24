@@ -149,8 +149,36 @@ Edit configuration files under `config/` to match the deployment environment:
   broadcasting, and emits a dry-run transaction summary when `--execute` is omitted.
 - `npx hardhat identity-registry:emergency-status --network <network> --addresses '["0x..."]'` reports whether the provided
   addresses currently hold emergency privileges, while `npx hardhat identity-registry:set-emergency --network <network>
---allow '0x...,0x...' --plan-out ./plan.json` produces a Safe-ready sequence of `setEmergencyAccess` calls that can be
+  --allow '0x...,0x...' --plan-out ./plan.json` produces a Safe-ready sequence of `setEmergencyAccess` calls that can be
   executed with `--execute --from 0xOwner` once reviewed.
+
+### FeePool Hardhat tasks
+
+- `npx hardhat fee-pool:status --network <network>` prints the FeePool owner, burn destination, configured JobRegistry, and
+  fee token metadata, including the current token balance and recorded total fees.
+- `npx hardhat fee-pool:set-registry --network <network> --registry 0xRegistry` plans the one-time registry wiring and writes
+  Safe-ready JSON when `--plan-out ./plan.json` is supplied; append `--execute --from 0xOwner` to broadcast once ready.
+- `npx hardhat fee-pool:update-registry --network <network> --registry 0xNew` enforces pause-free migration guardrails and
+  emits the same plan summaries before optionally calling `updateJobRegistry` with `--execute`.
+- `npx hardhat fee-pool:update-burn --network <network> --burn 0xDestination` updates the burn recipient with dry-run metadata
+  that highlights the previous address and the new target.
+- `npx hardhat fee-pool:burn --network <network>` defaults to a dry run that reports the balance slated for burning; provide
+  `--execute --from 0xOwner` to submit the transfer when a positive balance is available.
+
+### StakeManager Hardhat tasks
+
+- `npx hardhat stake-manager:status --network <network>` displays owner, JobRegistry, fee recipient, pause state, stake token
+  metadata, and the contract's token balance with human-friendly formatting.
+- `npx hardhat stake-manager:set-registry --network <network> --registry 0xRegistry` performs the initial registry wiring and
+  produces JSON plans via `--plan-out`; re-run with `--execute --from 0xOwner` after confirming the dry-run output.
+- `npx hardhat stake-manager:update-registry --network <network> --registry 0xNew` validates the manager is paused before
+  generating an `updateJobRegistry` payload and optionally broadcasting it.
+- `npx hardhat stake-manager:set-fee-recipient --network <network> --recipient 0xDestination` coordinates recipient changes,
+  echoing both the previous and proposed destinations during dry runs.
+- `npx hardhat stake-manager:pause --network <network>` and `npx hardhat stake-manager:unpause --network <network>` default to
+  dry runs that confirm the current state and emit calldata plans before any transaction is sent.
+- `npx hardhat stake-manager:emergency-release --network <network> --account 0xWorker --amount <raw>` helps governance unlock
+  specific worker balances with Safe-ready summaries and optional live broadcasts via `--execute --from 0xOwner`.
 
 ### IdentityRegistry ENS console
 
