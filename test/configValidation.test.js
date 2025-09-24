@@ -26,9 +26,14 @@ contract('Configuration validation', () => {
 
       const ensMainnetPath = path.join(tmpDir, 'ens.mainnet.json');
       const ensMainnet = JSON.parse(fs.readFileSync(ensMainnetPath, 'utf8'));
-      ensMainnet.agentRootHash = '0x1234';
+      ensMainnet.agentRoot = 'agents.agi.eth';
+      ensMainnet.agentRootHash = '0x1111111111111111111111111111111111111111111111111111111111111111';
       ensMainnet.alphaAgentRoot = 'vip.agent.agi.eth';
-      ensMainnet.alphaClubRootHash = '0x1234';
+      ensMainnet.alphaAgentRootHash = '0x2222222222222222222222222222222222222222222222222222222222222222';
+      ensMainnet.alphaAgentEnabled = false;
+      ensMainnet.clubRootHash = '0x4444444444444444444444444444444444444444444444444444444444444444';
+      ensMainnet.alphaClubRootHash = '0x3333333333333333333333333333333333333333333333333333333333333333';
+      ensMainnet.alphaEnabled = false;
       fs.writeFileSync(ensMainnetPath, JSON.stringify(ensMainnet, null, 2));
 
       const paramsPath = path.join(tmpDir, 'params.json');
@@ -73,8 +78,36 @@ contract('Configuration validation', () => {
         'should flag ENS hash mismatch'
       );
       assert.isTrue(
+        errors.some((message) => message.includes('agentRoot must equal agent.agi.eth')),
+        'should enforce canonical agent root on mainnet',
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('agentRootHash must equal 0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d')),
+        'should enforce canonical agent root hash on mainnet',
+      );
+      assert.isTrue(
         errors.some((message) => message.includes('alphaAgentRoot must equal alpha.agent.agi.eth')),
         'should enforce alpha agent alias consistency'
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alphaAgentRootHash must equal 0xc74b6c5e8a0d97ed1fe28755da7d06a84593b4de92f6582327bc40f41d6c2d5e')),
+        'should enforce canonical alpha agent hash on mainnet',
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alphaAgentEnabled must be true for mainnet deployments')),
+        'should require alpha agent alias to remain active',
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('clubRootHash must equal 0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16')),
+        'should enforce canonical club root hash on mainnet',
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alphaClubRootHash must equal 0x6487f659ec6f3fbd424b18b685728450d2559e4d68768393f9c689b2b6e5405e')),
+        'should enforce canonical alpha club hash on mainnet',
+      );
+      assert.isTrue(
+        errors.some((message) => message.includes('alphaEnabled must be true for mainnet deployments')),
+        'should require alpha club alias to remain active',
       );
       assert.isTrue(
         errors.some((message) => message.includes('params.json')),

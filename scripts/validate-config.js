@@ -16,6 +16,21 @@ const ALPHA_CLUB_PRICE_WEI = BigInt('5000000000000000000000'); // 5,000 AGIALPHA
 const ALPHA_CLUB_PRICE_HUMAN = '5,000 AGIALPHA';
 const HEX_32_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
+const CANONICAL_ENS_ROOTS = {
+  agent: {
+    name: 'agent.agi.eth',
+    hash: '0x2c9c6189b2e92da4d0407e9deb38ff6870729ad063af7e8576cb7b7898c88e2d',
+    alphaName: 'alpha.agent.agi.eth',
+    alphaHash: '0xc74b6c5e8a0d97ed1fe28755da7d06a84593b4de92f6582327bc40f41d6c2d5e',
+  },
+  club: {
+    name: CLUB_DOMAIN_NAME,
+    hash: '0x39eb848f88bdfb0a6371096249dd451f56859dfe2cd3ddeab1e26d5bb68ede16',
+    alphaName: 'alpha.club.agi.eth',
+    alphaHash: '0x6487f659ec6f3fbd424b18b685728450d2559e4d68768393f9c689b2b6e5405e',
+  },
+};
+
 function readJson(filePath) {
   const raw = fs.readFileSync(filePath, 'utf8');
   return JSON.parse(raw);
@@ -31,6 +46,40 @@ function equalsIgnoreCase(a, b) {
 
 function addError(errors, fileLabel, message) {
   errors.push(`${fileLabel}: ${message}`);
+}
+
+function enforceCanonicalRoot(errors, fileLabel, value, expected, field, { variant }) {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  if (typeof value !== 'string') {
+    return;
+  }
+
+  if (!equalsIgnoreCase(value, expected)) {
+    addError(errors, fileLabel, `${field} must equal ${expected} for ${variant} deployments`);
+  }
+}
+
+function enforceCanonicalHash(errors, fileLabel, value, expected, field, { variant }) {
+  if (value === null || value === undefined) {
+    return;
+  }
+
+  if (typeof value !== 'string' || !HEX_32_REGEX.test(value)) {
+    return;
+  }
+
+  if (!equalsIgnoreCase(value, expected)) {
+    addError(errors, fileLabel, `${field} must equal ${expected} for ${variant} deployments`);
+  }
+}
+
+function enforceCanonicalFlag(errors, fileLabel, value, field, { variant }) {
+  if (value !== true) {
+    addError(errors, fileLabel, `${field} must be true for ${variant} deployments`);
+  }
 }
 
 function ensureString(errors, fileLabel, object, key, { required = false, nonEmpty = false } = {}) {
@@ -279,6 +328,54 @@ function validateAlphaAliasConfig(
   }
 }
 
+function enforceCanonicalEnsConfiguration(errors, fileLabel, data, { variant }) {
+  if (variant !== 'mainnet' && variant !== 'sepolia') {
+    return;
+  }
+
+  const agent = CANONICAL_ENS_ROOTS.agent;
+  enforceCanonicalRoot(errors, fileLabel, data.agentRoot, agent.name, 'agentRoot', { variant });
+  enforceCanonicalHash(errors, fileLabel, data.agentRootHash, agent.hash, 'agentRootHash', { variant });
+  enforceCanonicalRoot(
+    errors,
+    fileLabel,
+    data.alphaAgentRoot,
+    agent.alphaName,
+    'alphaAgentRoot',
+    { variant },
+  );
+  enforceCanonicalHash(
+    errors,
+    fileLabel,
+    data.alphaAgentRootHash,
+    agent.alphaHash,
+    'alphaAgentRootHash',
+    { variant },
+  );
+  enforceCanonicalFlag(errors, fileLabel, data.alphaAgentEnabled, 'alphaAgentEnabled', { variant });
+
+  const club = CANONICAL_ENS_ROOTS.club;
+  enforceCanonicalRoot(errors, fileLabel, data.clubRoot, club.name, 'clubRoot', { variant });
+  enforceCanonicalHash(errors, fileLabel, data.clubRootHash, club.hash, 'clubRootHash', { variant });
+  enforceCanonicalRoot(
+    errors,
+    fileLabel,
+    data.alphaClubRoot,
+    club.alphaName,
+    'alphaClubRoot',
+    { variant },
+  );
+  enforceCanonicalHash(
+    errors,
+    fileLabel,
+    data.alphaClubRootHash,
+    club.alphaHash,
+    'alphaClubRootHash',
+    { variant },
+  );
+  enforceCanonicalFlag(errors, fileLabel, data.alphaEnabled, 'alphaEnabled', { variant });
+}
+
 function validateEnsConfig(errors, fileLabel, data, { variant }) {
   if (!data || typeof data !== 'object') {
     addError(errors, fileLabel, 'configuration must be an object');
@@ -340,6 +437,8 @@ function validateEnsConfig(errors, fileLabel, data, { variant }) {
     aliasHashKey: 'alphaClubRootHash',
     enabledKey: 'alphaEnabled',
   });
+
+  enforceCanonicalEnsConfiguration(errors, fileLabel, data, { variant });
 }
 
 function parseBigIntLike(value) {
