@@ -65,6 +65,54 @@ contract('IdentityRegistry', (accounts) => {
     );
   });
 
+  it('allows the owner to update the ENS registry address', async function () {
+    await this.registry.configureEns(
+      stranger,
+      worker,
+      web3.utils.randomHex(32),
+      web3.utils.randomHex(32),
+      '0x'.padEnd(66, '0'),
+      false,
+      { from: owner }
+    );
+
+    await this.registry.setEnsRegistry(client, { from: owner });
+    assert.strictEqual(await this.registry.ensRegistry(), client);
+
+    await expectRevert(
+      this.registry.setEnsRegistry(constants.ZERO_ADDRESS, { from: owner }),
+      'IdentityRegistry: registry'
+    );
+
+    await expectRevert(
+      this.registry.setEnsRegistry(worker, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('allows the owner to update the ENS name wrapper address', async function () {
+    await this.registry.configureEns(
+      stranger,
+      worker,
+      web3.utils.randomHex(32),
+      web3.utils.randomHex(32),
+      '0x'.padEnd(66, '0'),
+      false,
+      { from: owner }
+    );
+
+    await this.registry.setEnsNameWrapper(emergency, { from: owner });
+    assert.strictEqual(await this.registry.ensNameWrapper(), emergency);
+
+    await this.registry.setEnsNameWrapper(constants.ZERO_ADDRESS, { from: owner });
+    assert.strictEqual(await this.registry.ensNameWrapper(), constants.ZERO_ADDRESS);
+
+    await expectRevert(
+      this.registry.setEnsNameWrapper(worker, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
   it('accepts a zero wrapper address for networks without NameWrapper', async function () {
     const agentHash = web3.utils.randomHex(32);
     const clubHash = web3.utils.randomHex(32);
@@ -99,6 +147,83 @@ contract('IdentityRegistry', (accounts) => {
         }
       ),
       'IdentityRegistry: alpha hash'
+    );
+  });
+
+  it('allows the owner to update the agent root hash and enforces the alpha alias', async function () {
+    const initialAgent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    const updatedAgent = web3.utils.keccak256('updated-agent-root');
+
+    await this.registry.configureEns(stranger, worker, initialAgent, club, '0x'.padEnd(66, '0'), false, {
+      from: owner,
+    });
+
+    await this.registry.setAlphaAgentRoot('0x'.padEnd(66, '0'), false, { from: owner });
+
+    await this.registry.setAgentRootHash(updatedAgent, { from: owner });
+    assert.strictEqual(await this.registry.agentRootHash(), updatedAgent);
+    const expectedAlphaHash = web3.utils.soliditySha3(
+      { type: 'bytes32', value: updatedAgent },
+      { type: 'bytes32', value: web3.utils.keccak256('alpha') }
+    );
+    assert.strictEqual(await this.registry.alphaAgentRootHash(), expectedAlphaHash);
+    assert.isTrue(await this.registry.alphaAgentEnabled());
+
+    await expectRevert(
+      this.registry.setAgentRootHash('0x'.padEnd(66, '0'), { from: owner }),
+      'IdentityRegistry: agent hash'
+    );
+
+    await expectRevert(
+      this.registry.setAgentRootHash(web3.utils.randomHex(32), { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('allows the owner to update the club root hash', async function () {
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    const updatedClub = web3.utils.keccak256('updated-club-root');
+
+    await this.registry.configureEns(stranger, worker, agent, club, '0x'.padEnd(66, '0'), false, { from: owner });
+
+    await this.registry.setClubRootHash(updatedClub, { from: owner });
+    assert.strictEqual(await this.registry.clubRootHash(), updatedClub);
+
+    await expectRevert(
+      this.registry.setClubRootHash('0x'.padEnd(66, '0'), { from: owner }),
+      'IdentityRegistry: club hash'
+    );
+
+    await expectRevert(
+      this.registry.setClubRootHash(web3.utils.randomHex(32), { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+  });
+
+  it('allows the owner to configure the alpha club root and toggle', async function () {
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    const alphaClub = web3.utils.keccak256('alpha-club-root');
+
+    await this.registry.configureEns(stranger, worker, agent, club, alphaClub, true, { from: owner });
+
+    await this.registry.setAlphaClubRoot(alphaClub, false, { from: owner });
+    assert.strictEqual(await this.registry.alphaClubRootHash(), alphaClub);
+    assert.isFalse(await this.registry.alphaEnabled());
+
+    await this.registry.setAlphaClubRoot(alphaClub, true, { from: owner });
+    assert.isTrue(await this.registry.alphaEnabled());
+
+    await expectRevert(
+      this.registry.setAlphaClubRoot('0x'.padEnd(66, '0'), true, { from: owner }),
+      'IdentityRegistry: alpha hash'
+    );
+
+    await expectRevert(
+      this.registry.setAlphaClubRoot(alphaClub, true, { from: stranger }),
+      'Ownable: caller is not the owner'
     );
   });
 
