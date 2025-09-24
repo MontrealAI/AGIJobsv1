@@ -36,6 +36,8 @@
     "config:profiles": "node scripts/config-profile-manager.js",
     "identity:console": "npx truffle exec scripts/identity-registry-console.js --network ${NETWORK:-development}",
     "identity:emergency": "npx truffle exec scripts/identity-registry-emergency.js --network ${NETWORK:-development}",
+    "fee:status": "npx hardhat fee-pool:status --network ${NETWORK:-development}",
+    "stake:status": "npx hardhat stake-manager:status --network ${NETWORK:-development}",
     "prepare": "husky install",
     "hardhat:test": "node scripts/run-tests.js",
     "config:console": "npx truffle exec scripts/job-registry-config-console.js --network ${NETWORK:-development}",
