@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { hash: computeNamehash, normalize: normalizeEnsName } = require('eth-ens-namehash');
+const Web3Utils = require('web3-utils');
 
 const { configPath, readConfig, resolveVariant } = require('../config-loader');
 const { toChecksum, formatDiffEntry } = require('./job-registry-config-utils');
@@ -16,6 +17,8 @@ const HEX_32_REGEX = /^0x[0-9a-fA-F]{64}$/;
 const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const ALPHA_PREFIX = 'alpha.';
+const ALPHA_LABEL_HASH = Web3Utils.keccak256('alpha');
 
 function parseBooleanFlag(value, defaultValue = false) {
   if (value === undefined || value === null) {
@@ -216,6 +219,28 @@ function ensureEnsHashFromName(value, label) {
 }
 
 function deriveDesiredConfig(baseValues, overrides = {}) {
+  const deriveAlphaAgentRootName = () => {
+    if (baseValues.alphaAgentRoot) {
+      return baseValues.alphaAgentRoot;
+    }
+    if (!baseValues.agentRoot) {
+      return null;
+    }
+
+    try {
+      const normalizedAgent = normalizeEnsName(String(baseValues.agentRoot));
+      if (normalizedAgent.startsWith(ALPHA_PREFIX)) {
+        return normalizedAgent;
+      }
+      return `${ALPHA_PREFIX}${normalizedAgent}`;
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      throw new Error(`Invalid ENS name for agentRoot: ${message}`);
+    }
+  };
+
+  const alphaAgentRootName = deriveAlphaAgentRootName();
+
   const desired = {
     registry: ensureAddress(baseValues.registry, 'registry'),
     nameWrapper: ensureAddress(baseValues.nameWrapper, 'nameWrapper'),
@@ -230,6 +255,13 @@ function deriveDesiredConfig(baseValues, overrides = {}) {
       ensureEnsHashFromName(baseValues.alphaClubRoot, 'alphaClubRoot'),
     alphaEnabled:
       baseValues.alphaEnabled === undefined ? false : Boolean(baseValues.alphaEnabled),
+    alphaAgentRootHash:
+      ensureHash(baseValues.alphaAgentRootHash, 'alphaAgentRootHash') ||
+      ensureEnsHashFromName(alphaAgentRootName, 'alphaAgentRoot'),
+    alphaAgentEnabled:
+      baseValues.alphaAgentEnabled === undefined || baseValues.alphaAgentEnabled === null
+        ? undefined
+        : Boolean(baseValues.alphaAgentEnabled),
   };
 
   const applyOverride = (key, rawValue) => {
@@ -273,12 +305,34 @@ function deriveDesiredConfig(baseValues, overrides = {}) {
       case 'alpha-enabled':
         desired.alphaEnabled = parseBooleanFlag(rawValue, true);
         break;
+      case 'alphaAgentRootHash':
+      case 'alpha-agent-root-hash':
+        desired.alphaAgentRootHash = ensureHash(rawValue, 'ens.alphaAgentRootHash');
+        break;
+      case 'alphaAgentRoot':
+      case 'alpha-agent-root':
+        desired.alphaAgentRootHash = ensureEnsHashFromName(rawValue, 'ens.alphaAgentRoot');
+        break;
+      case 'alphaAgentEnabled':
+      case 'alpha-agent-enabled':
+        desired.alphaAgentEnabled = parseBooleanFlag(rawValue, true);
+        break;
       default:
         break;
     }
   };
 
   Object.entries(overrides).forEach(([key, value]) => applyOverride(key, value));
+
+  if (desired.alphaAgentRootHash && desired.alphaAgentEnabled === undefined) {
+    desired.alphaAgentEnabled = true;
+  }
+  if (desired.alphaAgentEnabled === undefined) {
+    desired.alphaAgentEnabled = false;
+  }
+  if (desired.alphaAgentEnabled && (!desired.alphaAgentRootHash || desired.alphaAgentRootHash === ZERO_BYTES32)) {
+    throw new Error('alphaAgentEnabled=true requires alphaAgentRootHash to be non-zero');
+  }
 
   if (!desired.registry || desired.registry === ZERO_ADDRESS) {
     throw new Error('IdentityRegistry.configureEns requires a non-zero registry address');
@@ -321,6 +375,53 @@ function formatHashOrUnset(value) {
   return candidate.toLowerCase() === ZERO_BYTES32 ? '(unset)' : candidate;
 }
 
+function deriveAlphaAgentHashFromRoot(agentRootHash) {
+  if (!agentRootHash || agentRootHash === ZERO_BYTES32) {
+    return ZERO_BYTES32;
+  }
+  return Web3Utils.soliditySha3(
+    { type: 'bytes32', value: agentRootHash },
+    { type: 'bytes32', value: ALPHA_LABEL_HASH }
+  );
+}
+
+function buildAlphaAgentPlan({ current, desired }) {
+  const expectedRoot = deriveAlphaAgentHashFromRoot(desired.agentRootHash);
+  const expectedEnabled = expectedRoot !== ZERO_BYTES32;
+
+  const targetRoot = desired.alphaAgentRootHash || expectedRoot;
+  const targetEnabled =
+    desired.alphaAgentEnabled === undefined || desired.alphaAgentEnabled === null
+      ? expectedEnabled
+      : Boolean(desired.alphaAgentEnabled);
+
+  const normalizedCurrentRoot = normalizeHashForCompare(current.alphaAgentRootHash);
+  const normalizedTargetRoot = normalizeHashForCompare(targetRoot);
+  const normalizedExpectedRoot = normalizeHashForCompare(expectedRoot);
+  const currentEnabled = Boolean(current.alphaAgentEnabled);
+
+  const requiresOverride =
+    normalizedTargetRoot !== normalizedExpectedRoot || Boolean(targetEnabled) !== expectedEnabled;
+
+  const diff = {};
+  if (requiresOverride) {
+    if (normalizedTargetRoot !== normalizedCurrentRoot) {
+      diff.alphaAgentRootHash = { previous: current.alphaAgentRootHash || null, next: targetRoot };
+    }
+    if (Boolean(targetEnabled) !== currentEnabled) {
+      diff.alphaAgentEnabled = { previous: currentEnabled, next: Boolean(targetEnabled) };
+    }
+  }
+
+  return {
+    expected: { rootHash: expectedRoot, enabled: expectedEnabled },
+    target: { rootHash: targetRoot || ZERO_BYTES32, enabled: Boolean(targetEnabled) },
+    changed: requiresOverride,
+    diff,
+    args: [targetRoot || ZERO_BYTES32, Boolean(targetEnabled)],
+  };
+}
+
 function computeSetDiff(current, desired) {
   const diff = {};
 
@@ -360,7 +461,9 @@ function computeSetDiff(current, desired) {
 function buildSetPlan({ current, baseConfig, overrides }) {
   const desired = deriveDesiredConfig(baseConfig, overrides);
   const diff = computeSetDiff(current, desired);
-  const changed = Object.keys(diff).length > 0;
+  const configureChanged = Object.keys(diff).length > 0;
+  const alphaAgent = buildAlphaAgentPlan({ current, desired });
+  const changed = configureChanged || alphaAgent.changed;
 
   const args = [
     desired.registry,
@@ -374,6 +477,8 @@ function buildSetPlan({ current, baseConfig, overrides }) {
   return {
     desired,
     diff,
+    configureChanged,
+    alphaAgent,
     changed,
     args,
   };
@@ -388,6 +493,8 @@ function formatStatusLines(current) {
     `  clubRootHash: ${formatHashOrUnset(current.clubRootHash)}`,
     `  alphaClubRootHash: ${formatHashOrUnset(current.alphaClubRootHash)}`,
     `  alphaEnabled: ${Boolean(current.alphaEnabled)}`,
+    `  alphaAgentRootHash: ${formatHashOrUnset(current.alphaAgentRootHash)}`,
+    `  alphaAgentEnabled: ${Boolean(current.alphaAgentEnabled)}`,
   ];
 }
 
@@ -408,11 +515,41 @@ function formatPlanLines(plan) {
   if (lines.length === 1) {
     lines.push('  (no changes)');
   }
+  if (plan.alphaAgent && plan.alphaAgent.changed) {
+    lines.push('Alpha agent alias adjustments:');
+    if (plan.alphaAgent.diff.alphaAgentRootHash) {
+      lines.push(
+        `  alphaAgentRootHash: ${formatDiffEntry(
+          plan.alphaAgent.diff.alphaAgentRootHash.previous,
+          plan.alphaAgent.diff.alphaAgentRootHash.next,
+          (value) => formatHashOrUnset(value)
+        )}`
+      );
+    }
+    if (plan.alphaAgent.diff.alphaAgentEnabled !== undefined) {
+      lines.push(
+        `  alphaAgentEnabled: ${formatDiffEntry(
+          plan.alphaAgent.diff.alphaAgentEnabled.previous,
+          plan.alphaAgent.diff.alphaAgentEnabled.next,
+          (value) => (value ? 'true' : 'false')
+        )}`
+      );
+    }
+  }
   return lines;
 }
 
 async function collectCurrentConfig(identity) {
-  const [registry, nameWrapper, agentRootHash, clubRootHash, alphaClubRootHash, alphaEnabled] =
+  const [
+    registry,
+    nameWrapper,
+    agentRootHash,
+    clubRootHash,
+    alphaClubRootHash,
+    alphaEnabled,
+    alphaAgentRootHash,
+    alphaAgentEnabled,
+  ] =
     await Promise.all([
       identity.ensRegistry(),
       identity.ensNameWrapper(),
@@ -420,6 +557,8 @@ async function collectCurrentConfig(identity) {
       identity.clubRootHash(),
       identity.alphaClubRootHash(),
       identity.alphaEnabled(),
+      identity.alphaAgentRootHash(),
+      identity.alphaAgentEnabled(),
     ]);
 
   return {
@@ -429,6 +568,8 @@ async function collectCurrentConfig(identity) {
     clubRootHash: clubRootHash || null,
     alphaClubRootHash: alphaClubRootHash || null,
     alphaEnabled: Boolean(alphaEnabled),
+    alphaAgentRootHash: alphaAgentRootHash || null,
+    alphaAgentEnabled: Boolean(alphaAgentEnabled),
   };
 }
 

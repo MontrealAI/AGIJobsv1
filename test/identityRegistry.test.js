@@ -23,6 +23,12 @@ contract('IdentityRegistry', (accounts) => {
     assert.strictEqual(await this.registry.clubRootHash(), clubHash);
     assert.strictEqual(await this.registry.alphaClubRootHash(), alphaHash);
     assert.isTrue(await this.registry.alphaEnabled());
+    const derivedAlphaAgent = web3.utils.soliditySha3(
+      { type: 'bytes32', value: agentHash },
+      { type: 'bytes32', value: web3.utils.keccak256('alpha') }
+    );
+    assert.strictEqual(await this.registry.alphaAgentRootHash(), derivedAlphaAgent);
+    assert.isTrue(await this.registry.alphaAgentEnabled());
   });
 
   it('rejects configure from non-owner', async function () {
@@ -118,6 +124,37 @@ contract('IdentityRegistry', (accounts) => {
     assert.isFalse(await this.registry.isAgentNode(web3.utils.randomHex(32)));
     assert.isTrue(await this.registry.isClubNode(club));
     assert.isFalse(await this.registry.isClubNode(web3.utils.randomHex(32)));
+  });
+
+  it('allows the owner to override the alpha agent alias configuration', async function () {
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    await this.registry.configureEns(stranger, worker, agent, club, '0x'.padEnd(66, '0'), false, { from: owner });
+
+    const customAlias = web3.utils.randomHex(32);
+    await this.registry.setAlphaAgentRoot(customAlias, true, { from: owner });
+    assert.strictEqual(await this.registry.alphaAgentRootHash(), customAlias);
+    assert.isTrue(await this.registry.alphaAgentEnabled());
+
+    await this.registry.setAlphaAgentRoot('0x'.padEnd(66, '0'), false, { from: owner });
+    assert.strictEqual(await this.registry.alphaAgentRootHash(), '0x'.padEnd(66, '0'));
+    assert.isFalse(await this.registry.alphaAgentEnabled());
+  });
+
+  it('restricts alpha agent overrides to the owner and validates enabling requirements', async function () {
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    await this.registry.configureEns(stranger, worker, agent, club, '0x'.padEnd(66, '0'), false, { from: owner });
+
+    await expectRevert(
+      this.registry.setAlphaAgentRoot(web3.utils.randomHex(32), true, { from: stranger }),
+      'Ownable: caller is not the owner'
+    );
+
+    await expectRevert(
+      this.registry.setAlphaAgentRoot('0x'.padEnd(66, '0'), true, { from: owner }),
+      'IdentityRegistry: alpha alias'
+    );
   });
 
   it('rejects zero root hashes during configuration', async function () {

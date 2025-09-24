@@ -74,14 +74,7 @@ function maybeWriteSummary(summary, outputPath) {
   return resolvedPath;
 }
 
-function buildPlanSummary({
-  identityAddress,
-  owner,
-  sender,
-  plan,
-  callData,
-  configProfile,
-}) {
+function buildPlanSummary({ identityAddress, owner, sender, plan, transactions, configProfile }) {
   return {
     identityRegistry: identityAddress,
     owner,
@@ -92,13 +85,9 @@ function buildPlanSummary({
     },
     desired: serializeForJson(plan.desired),
     diff: serializeForJson(plan.diff),
-    arguments: serializeForJson(plan.args),
-    call: {
-      to: identityAddress,
-      data: callData,
-      value: '0',
-      from: sender || null,
-    },
+    alphaAgent: serializeForJson(plan.alphaAgent),
+    configureArgs: serializeForJson(plan.args),
+    transactions,
   };
 }
 
@@ -230,13 +219,34 @@ task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration w
       return;
     }
 
-    const callData = identity.contract.methods.configureEns(...plan.args).encodeABI();
+    const transactions = [];
+    if (plan.configureChanged) {
+      transactions.push({
+        to: identityAddress,
+        from: sender,
+        value: '0',
+        method: 'IdentityRegistry.configureEns',
+        data: identity.contract.methods.configureEns(...plan.args).encodeABI(),
+        arguments: serializeForJson(plan.args),
+      });
+    }
+    if (plan.alphaAgent && plan.alphaAgent.changed) {
+      transactions.push({
+        to: identityAddress,
+        from: sender,
+        value: '0',
+        method: 'IdentityRegistry.setAlphaAgentRoot',
+        data: identity.contract.methods.setAlphaAgentRoot(...plan.alphaAgent.args).encodeABI(),
+        arguments: serializeForJson(plan.alphaAgent.args),
+      });
+    }
+
     const summary = buildPlanSummary({
       identityAddress,
       owner,
       sender,
       plan,
-      callData,
+      transactions,
       configProfile,
     });
 
@@ -253,8 +263,14 @@ task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration w
 
     ensureOwner(sender, owner);
 
-    const receipt = await identity.configureEns(...plan.args, { from: sender });
-    console.log(`\nTransaction broadcast. Hash: ${receipt.tx}`);
+    if (plan.configureChanged) {
+      const receipt = await identity.configureEns(...plan.args, { from: sender });
+      console.log(`\nconfigureEns broadcast. Hash: ${receipt.tx}`);
+    }
+    if (plan.alphaAgent && plan.alphaAgent.changed) {
+      const receipt = await identity.setAlphaAgentRoot(...plan.alphaAgent.args, { from: sender });
+      console.log(`Alpha agent alias update broadcast. Hash: ${receipt.tx}`);
+    }
   });
 
 task('identity-registry:emergency-status', 'Inspect IdentityRegistry emergency allow list entries')

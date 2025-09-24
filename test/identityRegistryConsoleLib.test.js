@@ -43,6 +43,7 @@ describe('identity-registry-console library', () => {
   it('derives desired configuration from base config and overrides', () => {
     const clubHash = namehash('club.agi.eth');
     const alphaHash = namehash('alpha.club.agi.eth');
+    const alphaAgentHash = namehash('alpha.agent.agi.eth');
 
     const desired = deriveDesiredConfig(
       {
@@ -66,6 +67,8 @@ describe('identity-registry-console library', () => {
     expect(desired.clubRootHash).to.equal(clubHash);
     expect(desired.alphaClubRootHash).to.equal(alphaHash);
     expect(desired.alphaEnabled).to.be.false;
+    expect(desired.alphaAgentRootHash).to.equal(alphaAgentHash);
+    expect(desired.alphaAgentEnabled).to.be.true;
   });
 
   it('throws when required ENS parameters are missing', () => {
@@ -95,6 +98,8 @@ describe('identity-registry-console library', () => {
         clubRootHash: clubHash,
         alphaClubRootHash: null,
         alphaEnabled: false,
+        alphaAgentRootHash: namehash('alpha.agent.agi.eth'),
+        alphaAgentEnabled: true,
       },
       baseConfig: {
         registry: addressOf('4'),
@@ -110,6 +115,8 @@ describe('identity-registry-console library', () => {
     });
 
     expect(plan.changed).to.be.true;
+    expect(plan.configureChanged).to.be.true;
+    expect(plan.alphaAgent.changed).to.be.false;
     expect(plan.args).to.deep.equal([
       addressOf('4'),
       '0x0000000000000000000000000000000000000000',
@@ -139,6 +146,8 @@ describe('identity-registry-console library', () => {
       clubRootHash: clubHash,
       alphaClubRootHash: null,
       alphaEnabled: false,
+      alphaAgentRootHash: null,
+      alphaAgentEnabled: false,
     });
 
     expect(lines).to.deep.equal([
@@ -149,6 +158,41 @@ describe('identity-registry-console library', () => {
       `  clubRootHash: ${clubHash}`,
       '  alphaClubRootHash: (unset)',
       '  alphaEnabled: false',
+      '  alphaAgentRootHash: (unset)',
+      '  alphaAgentEnabled: false',
     ]);
+  });
+
+  it('identifies alpha agent override requirements in the plan', () => {
+    const agentHash = namehash('agent.agi.eth');
+    const clubHash = namehash('club.agi.eth');
+    const alphaAgentHash = hashOf('c');
+
+    const plan = buildSetPlan({
+      current: {
+        registry: addressOf('4'),
+        nameWrapper: null,
+        agentRootHash: agentHash,
+        clubRootHash: clubHash,
+        alphaClubRootHash: null,
+        alphaEnabled: false,
+        alphaAgentRootHash: namehash('alpha.agent.agi.eth'),
+        alphaAgentEnabled: true,
+      },
+      baseConfig: {
+        registry: addressOf('4'),
+        nameWrapper: null,
+        agentRoot: 'agent.agi.eth',
+        clubRoot: 'club.agi.eth',
+        alphaAgentRootHash: alphaAgentHash,
+        alphaAgentEnabled: false,
+      },
+      overrides: {},
+    });
+
+    expect(plan.alphaAgent.changed).to.be.true;
+    expect(plan.alphaAgent.args).to.deep.equal([alphaAgentHash, false]);
+    const planLines = formatPlanLines(plan);
+    expect(planLines).to.include('Alpha agent alias adjustments:');
   });
 });

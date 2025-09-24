@@ -16,6 +16,7 @@ contract IdentityRegistry is Ownable {
         bytes32 alphaClubRootHash,
         bool alphaEnabled
     );
+    event AlphaAgentConfigured(bytes32 alphaAgentRootHash, bool enabled);
     event EmergencyAccessUpdated(address indexed account, bool allowed);
 
     address public ensRegistry;
@@ -24,6 +25,8 @@ contract IdentityRegistry is Ownable {
     bytes32 public clubRootHash;
     bytes32 public alphaClubRootHash;
     bool public alphaEnabled;
+    bytes32 public alphaAgentRootHash;
+    bool public alphaAgentEnabled;
 
     mapping(address => bool) private _emergencyAllowList;
 
@@ -62,7 +65,19 @@ contract IdentityRegistry is Ownable {
         alphaClubRootHash = alphaClubHash;
         alphaEnabled = alphaClubEnabled;
 
+        _setAlphaAgentRoot(_deriveAlphaAgentRoot(agentHash), true);
+
         emit EnsConfigured(registry, wrapper, agentHash, clubHash, alphaClubHash, alphaClubEnabled);
+    }
+
+    /// @notice Updates the alpha agent namespace equivalence.
+    /// @param alphaAgentHash ENS node hash recognised as equivalent to the agent root.
+    /// @param enabled Boolean flag indicating whether the alias should be honoured.
+    function setAlphaAgentRoot(bytes32 alphaAgentHash, bool enabled) external onlyOwner {
+        if (enabled) {
+            require(alphaAgentHash != bytes32(0), "IdentityRegistry: alpha alias");
+        }
+        _setAlphaAgentRoot(alphaAgentHash, enabled);
     }
 
     /// @notice Adds or removes an address from the emergency allow list.
@@ -88,7 +103,7 @@ contract IdentityRegistry is Ownable {
         if (nodeHash == root) {
             return true;
         }
-        if (root != bytes32(0) && nodeHash == _deriveAlphaAgentRoot(root)) {
+        if (alphaAgentEnabled && nodeHash == alphaAgentRootHash && alphaAgentRootHash != bytes32(0)) {
             return true;
         }
         return false;
@@ -186,6 +201,12 @@ contract IdentityRegistry is Ownable {
 
     function _deriveAlphaAgentRoot(bytes32 root) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(root, _ALPHA_LABEL_HASH));
+    }
+
+    function _setAlphaAgentRoot(bytes32 alphaAgentHash, bool enabled) private {
+        alphaAgentRootHash = alphaAgentHash;
+        alphaAgentEnabled = enabled;
+        emit AlphaAgentConfigured(alphaAgentHash, enabled);
     }
 
     function _ownsNode(address account, bytes32 node) private view returns (bool) {

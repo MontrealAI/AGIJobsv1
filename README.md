@@ -214,6 +214,10 @@ Edit configuration files under `config/` to match the deployment environment:
   multisig or custom signing flow before toggling `--execute`.
 - CLI overrides accept ENS names (`--ens.agentRoot`) or pre-computed hashes (`--ens.agentRootHash`), making it simple to
   flip `alphaEnabled` with the correct root hash without editing JSON by hand.
+- The console now surfaces the `alphaAgent` alias configuration so `alpha.agent.agi.eth` and the base `agent.agi.eth`
+  namespace can be kept in sync. Provide `--ens.alphaAgentRoot` / `--ens.alphaAgentRootHash` to override the derived
+  alias, or `--ens.alphaAgentEnabled=false` to temporarily suspend the wildcard while keeping the primary agent root
+  intact.
 
 ### IdentityRegistry emergency console
 
