@@ -54,6 +54,7 @@ function printHelp() {
   console.log(
     '  --thresholds.<key> <value>   approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax'
   );
+  console.log('  --atomic[=true|false]          Use setFullConfiguration for a single transaction');
   console.log('');
   console.log('Update action example:');
   console.log(
@@ -200,6 +201,7 @@ module.exports = async function (callback) {
           timings: paramsConfig.values,
           thresholds: paramsConfig.values,
         },
+        preferAtomic: Boolean(options.atomic),
       });
 
       console.log(`Params file: ${paramsConfig.path}`);
@@ -210,38 +212,51 @@ module.exports = async function (callback) {
       printDiffSection('Thresholds', plans.thresholdsPlan.diff, (value) => `${value}`);
 
       const actions = [];
-      if (plans.modulesPlan.changed) {
+      if (plans.atomicPlan && plans.atomicPlan.changed) {
         actions.push(async () => {
-          console.log('Executing setModules…');
-          const receipt = await jobRegistry.setModules(plans.modulesPlan.desired, { from: sender });
-          console.log(`  ✓ setModules tx: ${receipt.tx}`);
-        });
-      }
-      if (plans.timingsPlan.changed) {
-        actions.push(async () => {
-          console.log('Executing setTimings…');
-          const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
-          const receipt = await jobRegistry.setTimings(commitWindow, revealWindow, disputeWindow, {
-            from: sender,
-          });
-          console.log(`  ✓ setTimings tx: ${receipt.tx}`);
-        });
-      }
-      if (plans.thresholdsPlan.changed) {
-        actions.push(async () => {
-          console.log('Executing setThresholds…');
-          const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
-            plans.thresholdsPlan.desired;
-          const receipt = await jobRegistry.setThresholds(
-            approvalThresholdBps,
-            quorumMin,
-            quorumMax,
-            feeBps,
-            slashBpsMax,
+          console.log('Executing setFullConfiguration…');
+          const receipt = await jobRegistry.setFullConfiguration(
+            plans.atomicPlan.desired.modules,
+            plans.atomicPlan.desired.timings,
+            plans.atomicPlan.desired.thresholds,
             { from: sender }
           );
-          console.log(`  ✓ setThresholds tx: ${receipt.tx}`);
+          console.log(`  ✓ setFullConfiguration tx: ${receipt.tx}`);
         });
+      } else {
+        if (plans.modulesPlan.changed) {
+          actions.push(async () => {
+            console.log('Executing setModules…');
+            const receipt = await jobRegistry.setModules(plans.modulesPlan.desired, { from: sender });
+            console.log(`  ✓ setModules tx: ${receipt.tx}`);
+          });
+        }
+        if (plans.timingsPlan.changed) {
+          actions.push(async () => {
+            console.log('Executing setTimings…');
+            const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
+            const receipt = await jobRegistry.setTimings(commitWindow, revealWindow, disputeWindow, {
+              from: sender,
+            });
+            console.log(`  ✓ setTimings tx: ${receipt.tx}`);
+          });
+        }
+        if (plans.thresholdsPlan.changed) {
+          actions.push(async () => {
+            console.log('Executing setThresholds…');
+            const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
+              plans.thresholdsPlan.desired;
+            const receipt = await jobRegistry.setThresholds(
+              approvalThresholdBps,
+              quorumMin,
+              quorumMax,
+              feeBps,
+              slashBpsMax,
+              { from: sender }
+            );
+            console.log(`  ✓ setThresholds tx: ${receipt.tx}`);
+          });
+        }
       }
 
       if (planOutputPath) {

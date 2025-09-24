@@ -98,7 +98,7 @@ Edit configuration files under `config/` to match the deployment environment:
 
 - Launch `npm run config:wizard -- --network <network>` for an interactive walkthrough tailored to non-technical operators. The wizard prints the current JobRegistry configuration, suggests defaults from local deployments and `config/params.json`, accepts `default` at any prompt to reuse those values, validates every override, and emits a Safe-ready JSON summary.
 - Provide `--execute` to broadcast the generated plan after a confirmation prompt, or `--plan-out ./path/to/plan.json` during a dry run to persist calldata for multisig execution.
-- Prefill overrides via the same `--modules.<key>`, `--timings.<key>`, and `--thresholds.<key>` flags accepted by the configuration console when scripting or operating in non-interactive environments.
+- Prefill overrides via the same `--modules.<key>`, `--timings.<key>`, and `--thresholds.<key>` flags accepted by the configuration console when scripting or operating in non-interactive environments. Combine them with `--atomic` to reuse the wizard while emitting a single `setFullConfiguration` transaction for production rollouts.
 
 ### JobRegistry owner console
 
@@ -127,7 +127,8 @@ Edit configuration files under `config/` to match the deployment environment:
 - `npx hardhat job-registry:set-config --network <network> --modules '{"identity":"0x…"}' --plan-out ./plan.json` aligns
   modules, timings, and thresholds with `config/params.json` defaults and optional JSON overrides. The task prints a
   multi-transaction plan with encoded calldata, writes an optional Safe-ready summary, and refuses to broadcast unless `--execute`
-  and an owner sender are supplied.
+  and an owner sender are supplied. Provide `--atomic` when broadcasting to use the single-transaction `setFullConfiguration`
+  pathway instead of three sequential calls.
 - `npx hardhat job-registry:update-config --network <network> --thresholds '{"feeBps":275}' --execute --from 0xOwner` updates a
   single module, timing, or threshold via the granular update functions. It reuses the same validation guardrails as the
   configuration console, emits plan summaries, and enforces owner checks before broadcasting.

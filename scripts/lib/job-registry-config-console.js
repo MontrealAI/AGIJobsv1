@@ -71,6 +71,7 @@ function parseConfigConsoleArgs(argv) {
   return {
     ...parsed,
     action,
+    atomic: Boolean(parsed.atomic),
   };
 }
 
@@ -103,7 +104,14 @@ function extractOverrideEntries(options) {
   return entries;
 }
 
-function buildSetPlans({ currentModules, currentTimings, currentThresholds, overrides, defaults }) {
+function buildSetPlans({
+  currentModules,
+  currentTimings,
+  currentThresholds,
+  overrides,
+  defaults,
+  preferAtomic = false,
+}) {
   const modulesPlan = computeModulesPlan({
     current: currentModules,
     overrides: overrides.modules,
@@ -120,7 +128,32 @@ function buildSetPlans({ currentModules, currentTimings, currentThresholds, over
     defaults: defaults.thresholds,
   });
 
-  return { modulesPlan, timingsPlan, thresholdsPlan };
+  let atomicPlan = null;
+  if (preferAtomic) {
+    const hasChanges = Boolean(
+      (modulesPlan && modulesPlan.changed) ||
+        (timingsPlan && timingsPlan.changed) ||
+        (thresholdsPlan && thresholdsPlan.changed)
+    );
+
+    if (hasChanges) {
+      atomicPlan = {
+        changed: true,
+        desired: {
+          modules: modulesPlan.desired,
+          timings: timingsPlan.desired,
+          thresholds: thresholdsPlan.desired,
+        },
+        diff: {
+          ...prefixDiff('modules', modulesPlan.diff),
+          ...prefixDiff('timings', timingsPlan.diff),
+          ...prefixDiff('thresholds', thresholdsPlan.diff),
+        },
+      };
+    }
+  }
+
+  return { modulesPlan, timingsPlan, thresholdsPlan, atomicPlan };
 }
 
 function ensureSingleOverride(entries) {
@@ -280,6 +313,17 @@ function buildUpdatePlan({ overrides, currentModules, currentTimings, currentThr
 
 function formatPlanDiff(summary, formatter = (value) => value) {
   return formatDiffEntry(summary.previous, summary.next, formatter);
+}
+
+function prefixDiff(prefix, diff) {
+  if (!diff || typeof diff !== 'object') {
+    return {};
+  }
+
+  return Object.entries(diff).reduce((acc, [key, value]) => {
+    acc[`${prefix}.${key}`] = value;
+    return acc;
+  }, {});
 }
 
 module.exports = {

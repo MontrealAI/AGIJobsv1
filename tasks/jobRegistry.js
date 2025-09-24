@@ -329,6 +329,7 @@ task('job-registry:set-config', 'Align JobRegistry configuration using repositor
   .addOptionalParam('params', 'Path to params.json providing timing/threshold defaults', undefined, types.string)
   .addOptionalParam('variant', 'Optional configuration variant label for plan metadata', undefined, types.string)
   .addOptionalParam('planOut', 'Write the generated plan summary JSON to the specified path', undefined, types.string)
+  .addFlag('atomic', 'Use setFullConfiguration when applying configuration changes')
   .addFlag('execute', 'Broadcast the transactions instead of performing a dry run')
   .setAction(async (args, hre) => {
     const registry = await resolveRegistry(hre, args.registry);
@@ -350,6 +351,7 @@ task('job-registry:set-config', 'Align JobRegistry configuration using repositor
         timings: paramsConfig.values,
         thresholds: paramsConfig.values,
       },
+      preferAtomic: Boolean(args.atomic),
     });
 
     console.log('AGIJobsv1 — Hardhat JobRegistry set-config');
@@ -398,6 +400,17 @@ task('job-registry:set-config', 'Align JobRegistry configuration using repositor
     }
 
     ensureOwner(sender, owner);
+
+    if (plans.atomicPlan && plans.atomicPlan.changed) {
+      const receipt = await registry.setFullConfiguration(
+        plans.atomicPlan.desired.modules,
+        plans.atomicPlan.desired.timings,
+        plans.atomicPlan.desired.thresholds,
+        { from: sender }
+      );
+      console.log(`✓ setFullConfiguration tx: ${receipt.tx}`);
+      return;
+    }
 
     if (plans.modulesPlan.changed) {
       const receipt = await registry.setModules(plans.modulesPlan.desired, { from: sender });
