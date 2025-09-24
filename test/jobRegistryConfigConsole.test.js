@@ -49,6 +49,7 @@ describe('job-registry-config-console library', () => {
     expect(parsed.execute).to.be.false;
     expect(parsed.timings.commitWindow).to.equal('7200');
     expect(parsed.planOutPath).to.equal('plan.json');
+    expect(parsed.atomic).to.be.false;
   });
 
   it('builds set plans using overrides and defaults', () => {
@@ -88,6 +89,50 @@ describe('job-registry-config-console library', () => {
     expect(plans.modulesPlan.desired.identity).to.equal(addressOf('a'));
     expect(plans.timingsPlan.desired.commitWindow).to.equal(9000);
     expect(plans.thresholdsPlan.desired.feeBps).to.equal(300);
+  });
+
+  it('builds an atomic plan when requested', () => {
+    const currentModules = fillModules('1');
+    const overrides = {
+      modules: { identity: addressOf('c') },
+      timings: { commitWindow: '7200', revealWindow: '3600', disputeWindow: '10800' },
+      thresholds: { feeBps: '275' },
+    };
+    const defaults = {
+      modules: fillModules('2'),
+      timings: { commitWindow: 3600, revealWindow: 3600, disputeWindow: 7200 },
+      thresholds: {
+        approvalThresholdBps: 6000,
+        quorumMin: 3,
+        quorumMax: 11,
+        feeBps: 250,
+        slashBpsMax: 2000,
+      },
+    };
+
+    const plans = buildSetPlans({
+      currentModules,
+      currentTimings: { commitWindow: 3600, revealWindow: 3600, disputeWindow: 7200 },
+      currentThresholds: {
+        approvalThresholdBps: 6000,
+        quorumMin: 3,
+        quorumMax: 11,
+        feeBps: 250,
+        slashBpsMax: 2000,
+      },
+      overrides,
+      defaults,
+      preferAtomic: true,
+    });
+
+    expect(plans.atomicPlan).to.exist;
+    expect(plans.atomicPlan.changed).to.be.true;
+    expect(plans.atomicPlan.desired.modules.identity).to.equal(addressOf('c'));
+    expect(plans.atomicPlan.desired.timings.commitWindow).to.equal(7200);
+    expect(plans.atomicPlan.desired.thresholds.feeBps).to.equal(275);
+    expect(plans.atomicPlan.diff['modules.identity'].next).to.equal(addressOf('c'));
+    expect(plans.atomicPlan.diff['timings.commitWindow'].next).to.equal(7200);
+    expect(plans.atomicPlan.diff['thresholds.feeBps'].next).to.equal(275);
   });
 
   it('builds module update plan with normalization and diff reporting', () => {

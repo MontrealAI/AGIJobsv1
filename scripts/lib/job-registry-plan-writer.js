@@ -101,40 +101,51 @@ function buildSetPlanSummary({
 
   const steps = [];
 
-  if (plans.modulesPlan && plans.modulesPlan.changed) {
+  if (plans.atomicPlan && plans.atomicPlan.changed) {
     steps.push(
       buildStep({
         jobRegistry,
-        method: 'setModules',
-        args: [plans.modulesPlan.desired],
-        diff: plans.modulesPlan.diff,
+        method: 'setFullConfiguration',
+        args: [plans.atomicPlan.desired.modules, plans.atomicPlan.desired.timings, plans.atomicPlan.desired.thresholds],
+        diff: plans.atomicPlan.diff,
       })
     );
-  }
+  } else {
+    if (plans.modulesPlan && plans.modulesPlan.changed) {
+      steps.push(
+        buildStep({
+          jobRegistry,
+          method: 'setModules',
+          args: [plans.modulesPlan.desired],
+          diff: plans.modulesPlan.diff,
+        })
+      );
+    }
 
-  if (plans.timingsPlan && plans.timingsPlan.changed) {
-    const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
-    steps.push(
-      buildStep({
-        jobRegistry,
-        method: 'setTimings',
-        args: [commitWindow, revealWindow, disputeWindow],
-        diff: plans.timingsPlan.diff,
-      })
-    );
-  }
+    if (plans.timingsPlan && plans.timingsPlan.changed) {
+      const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
+      steps.push(
+        buildStep({
+          jobRegistry,
+          method: 'setTimings',
+          args: [commitWindow, revealWindow, disputeWindow],
+          diff: plans.timingsPlan.diff,
+        })
+      );
+    }
 
-  if (plans.thresholdsPlan && plans.thresholdsPlan.changed) {
-    const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
-      plans.thresholdsPlan.desired;
-    steps.push(
-      buildStep({
-        jobRegistry,
-        method: 'setThresholds',
-        args: [approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax],
-        diff: plans.thresholdsPlan.diff,
-      })
-    );
+    if (plans.thresholdsPlan && plans.thresholdsPlan.changed) {
+      const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
+        plans.thresholdsPlan.desired;
+      steps.push(
+        buildStep({
+          jobRegistry,
+          method: 'setThresholds',
+          args: [approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax],
+          diff: plans.thresholdsPlan.diff,
+        })
+      );
+    }
   }
 
   return {

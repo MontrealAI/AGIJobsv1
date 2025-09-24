@@ -87,6 +87,72 @@ contract('JobRegistry plan writer', (accounts) => {
     expect(thresholdsStep.diff.feeBps.next).to.equal(275);
   });
 
+  it('builds atomic set action plan summaries', async () => {
+    const jobRegistry = await JobRegistry.new({ from: owner });
+
+    const modulesDesired = {
+      identity,
+      staking,
+      validation,
+      dispute,
+      reputation,
+      feePool,
+    };
+    const timingsDesired = {
+      commitWindow: 3600,
+      revealWindow: 5400,
+      disputeWindow: 7200,
+    };
+    const thresholdsDesired = {
+      approvalThresholdBps: 6000,
+      quorumMin: 3,
+      quorumMax: 9,
+      feeBps: 275,
+      slashBpsMax: 2000,
+    };
+
+    const summary = buildSetPlanSummary({
+      jobRegistry,
+      jobRegistryAddress: jobRegistry.address,
+      sender: owner,
+      plans: {
+        modulesPlan: { changed: true, desired: modulesDesired, diff: diffFromObject(modulesDesired) },
+        timingsPlan: { changed: true, desired: timingsDesired, diff: diffFromObject(timingsDesired) },
+        thresholdsPlan: {
+          changed: true,
+          desired: thresholdsDesired,
+          diff: diffFromObject(thresholdsDesired),
+        },
+        atomicPlan: {
+          changed: true,
+          desired: {
+            modules: modulesDesired,
+            timings: timingsDesired,
+            thresholds: thresholdsDesired,
+          },
+          diff: {
+            'modules.identity': { previous: null, next: identity },
+            'timings.commitWindow': { previous: null, next: 3600 },
+            'thresholds.feeBps': { previous: null, next: 275 },
+          },
+        },
+      },
+      configuration: { modules: false, timings: false, thresholds: false },
+      variant: 'mainnet',
+      dryRun: false,
+    });
+
+    expect(summary.steps).to.have.lengthOf(1);
+    const [step] = summary.steps;
+    expect(step.method).to.equal('setFullConfiguration');
+    expect(step.arguments[0].identity).to.equal(identity);
+    expect(step.arguments[1].commitWindow).to.equal(3600);
+    expect(step.arguments[2].feeBps).to.equal(275);
+    expect(step.diff['modules.identity'].next).to.equal(identity);
+    expect(step.diff['timings.commitWindow'].next).to.equal(3600);
+    expect(step.diff['thresholds.feeBps'].next).to.equal(275);
+  });
+
   it('builds update action plan summaries and writes files', async () => {
     const jobRegistry = await JobRegistry.new({ from: owner });
 

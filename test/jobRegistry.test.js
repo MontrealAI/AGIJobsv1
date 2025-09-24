@@ -365,6 +365,84 @@ contract('JobRegistry', (accounts) => {
     assert.strictEqual(modules.feePool, this.feePool.address);
   });
 
+  it('configures modules, timings, and thresholds atomically', async function () {
+    const newTimings = {
+      commitWindow: 7200,
+      revealWindow: 1800,
+      disputeWindow: 5400,
+    };
+    const newThresholds = {
+      approvalThresholdBps: 6500,
+      quorumMin: 2,
+      quorumMax: 9,
+      feeBps: 300,
+      slashBpsMax: 2500,
+    };
+
+    const receipt = await this.jobRegistry.setFullConfiguration(
+      {
+        identity: this.identity.address,
+        staking: this.stakeManager.address,
+        validation: this.validation.address,
+        dispute: this.dispute.address,
+        reputation: this.reputation.address,
+        feePool: this.feePool.address,
+      },
+      newTimings,
+      newThresholds,
+      { from: deployer }
+    );
+
+    const timingsEvent = expectEvent(receipt, 'TimingsUpdated');
+    expect(timingsEvent.args.timings.commitWindow.toString()).to.equal(
+      String(newTimings.commitWindow)
+    );
+    expect(timingsEvent.args.timings.revealWindow.toString()).to.equal(String(newTimings.revealWindow));
+    expect(timingsEvent.args.timings.disputeWindow.toString()).to.equal(
+      String(newTimings.disputeWindow)
+    );
+
+    const thresholdsEvent = expectEvent(receipt, 'ThresholdsUpdated');
+    expect(thresholdsEvent.args.thresholds.approvalThresholdBps.toString()).to.equal(
+      String(newThresholds.approvalThresholdBps)
+    );
+    expect(thresholdsEvent.args.thresholds.quorumMin.toString()).to.equal(
+      String(newThresholds.quorumMin)
+    );
+    expect(thresholdsEvent.args.thresholds.quorumMax.toString()).to.equal(
+      String(newThresholds.quorumMax)
+    );
+    expect(thresholdsEvent.args.thresholds.feeBps.toString()).to.equal(String(newThresholds.feeBps));
+    expect(thresholdsEvent.args.thresholds.slashBpsMax.toString()).to.equal(
+      String(newThresholds.slashBpsMax)
+    );
+
+    const status = await this.jobRegistry.configurationStatus();
+    assert.strictEqual(status[0], true);
+    assert.strictEqual(status[1], true);
+    assert.strictEqual(status[2], true);
+
+    const modules = await this.jobRegistry.modules();
+    assert.strictEqual(modules.identity, this.identity.address);
+    assert.strictEqual(modules.staking, this.stakeManager.address);
+    assert.strictEqual(modules.validation, this.validation.address);
+    assert.strictEqual(modules.dispute, this.dispute.address);
+    assert.strictEqual(modules.reputation, this.reputation.address);
+    assert.strictEqual(modules.feePool, this.feePool.address);
+
+    const timings = await this.jobRegistry.timings();
+    assert.strictEqual(timings.commitWindow.toString(), '7200');
+    assert.strictEqual(timings.revealWindow.toString(), '1800');
+    assert.strictEqual(timings.disputeWindow.toString(), '5400');
+
+    const thresholds = await this.jobRegistry.thresholds();
+    assert.strictEqual(thresholds.approvalThresholdBps.toString(), '6500');
+    assert.strictEqual(thresholds.quorumMin.toString(), '2');
+    assert.strictEqual(thresholds.quorumMax.toString(), '9');
+    assert.strictEqual(thresholds.feeBps.toString(), '300');
+    assert.strictEqual(thresholds.slashBpsMax.toString(), '2500');
+  });
+
   it('wires dependent modules back to the registry', async function () {
     assert.strictEqual(await this.stakeManager.jobRegistry(), this.jobRegistry.address);
     assert.strictEqual(await this.feePool.jobRegistry(), this.jobRegistry.address);

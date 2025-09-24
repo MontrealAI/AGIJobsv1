@@ -141,15 +141,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
     /// @notice Sets the module wiring used throughout the registry lifecycle.
     /// @param newModules Struct containing addresses for each module dependency.
     function setModules(Modules calldata newModules) external onlyOwner {
-        require(newModules.identity != address(0), "JobRegistry: identity");
-        require(newModules.staking != address(0), "JobRegistry: staking");
-        require(newModules.validation != address(0), "JobRegistry: validation");
-        require(newModules.dispute != address(0), "JobRegistry: dispute");
-        require(newModules.reputation != address(0), "JobRegistry: reputation");
-        require(newModules.feePool != address(0), "JobRegistry: feePool");
-
-        _modules = newModules;
-        emit ModulesUpdated(newModules);
+        _applyModules(newModules);
     }
 
     /// @notice Updates an individual module address without re-specifying the full struct.
@@ -184,10 +176,7 @@ contract JobRegistry is Pausable, ReentrancyGuard {
     /// @param revealWindow Duration of the reveal phase in seconds.
     /// @param disputeWindow Duration of the dispute phase in seconds.
     function setTimings(uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow) external onlyOwner {
-        require(commitWindow > 0 && revealWindow > 0 && disputeWindow > 0, "JobRegistry: timings");
-        timings = Timings(commitWindow, revealWindow, disputeWindow);
-        _timingsConfigured = true;
-        emit TimingsUpdated(timings);
+        _applyTimings(commitWindow, revealWindow, disputeWindow);
     }
 
     /// @notice Updates a single lifecycle timing parameter while preserving others.
@@ -225,20 +214,27 @@ contract JobRegistry is Pausable, ReentrancyGuard {
         uint256 feeBps,
         uint256 slashBpsMax
     ) external onlyOwner {
-        require(quorumMin > 0 && quorumMax >= quorumMin, "JobRegistry: quorum");
-        require(approvalThresholdBps <= BPS_DENOMINATOR, "JobRegistry: approval bps");
-        require(feeBps <= BPS_DENOMINATOR, "JobRegistry: fee bps");
-        require(slashBpsMax <= BPS_DENOMINATOR, "JobRegistry: slash bps");
+        _applyThresholds(approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax);
+    }
 
-        thresholds = Thresholds({
-            approvalThresholdBps: approvalThresholdBps,
-            quorumMin: quorumMin,
-            quorumMax: quorumMax,
-            feeBps: feeBps,
-            slashBpsMax: slashBpsMax
-        });
-        _thresholdsConfigured = true;
-        emit ThresholdsUpdated(thresholds);
+    /// @notice Configures modules, timings, and thresholds atomically.
+    /// @param newModules Struct containing addresses for each module dependency.
+    /// @param newTimings Struct describing commit/reveal/dispute windows.
+    /// @param newThresholds Struct containing the economic thresholds to apply.
+    function setFullConfiguration(
+        Modules calldata newModules,
+        Timings calldata newTimings,
+        Thresholds calldata newThresholds
+    ) external onlyOwner {
+        _applyModules(newModules);
+        _applyTimings(newTimings.commitWindow, newTimings.revealWindow, newTimings.disputeWindow);
+        _applyThresholds(
+            newThresholds.approvalThresholdBps,
+            newThresholds.quorumMin,
+            newThresholds.quorumMax,
+            newThresholds.feeBps,
+            newThresholds.slashBpsMax
+        );
     }
 
     /// @notice Updates a single economic threshold with invariant enforcement.
@@ -537,5 +533,47 @@ contract JobRegistry is Pausable, ReentrancyGuard {
             return IdentityRegistry(identity).hasEmergencyAccess(caller);
         }
         return false;
+    }
+
+    function _applyModules(Modules calldata newModules) private {
+        require(newModules.identity != address(0), "JobRegistry: identity");
+        require(newModules.staking != address(0), "JobRegistry: staking");
+        require(newModules.validation != address(0), "JobRegistry: validation");
+        require(newModules.dispute != address(0), "JobRegistry: dispute");
+        require(newModules.reputation != address(0), "JobRegistry: reputation");
+        require(newModules.feePool != address(0), "JobRegistry: feePool");
+
+        _modules = newModules;
+        emit ModulesUpdated(newModules);
+    }
+
+    function _applyTimings(uint256 commitWindow, uint256 revealWindow, uint256 disputeWindow) private {
+        require(commitWindow > 0 && revealWindow > 0 && disputeWindow > 0, "JobRegistry: timings");
+        timings = Timings(commitWindow, revealWindow, disputeWindow);
+        _timingsConfigured = true;
+        emit TimingsUpdated(timings);
+    }
+
+    function _applyThresholds(
+        uint256 approvalThresholdBps,
+        uint256 quorumMin,
+        uint256 quorumMax,
+        uint256 feeBps,
+        uint256 slashBpsMax
+    ) private {
+        require(quorumMin > 0 && quorumMax >= quorumMin, "JobRegistry: quorum");
+        require(approvalThresholdBps <= BPS_DENOMINATOR, "JobRegistry: approval bps");
+        require(feeBps <= BPS_DENOMINATOR, "JobRegistry: fee bps");
+        require(slashBpsMax <= BPS_DENOMINATOR, "JobRegistry: slash bps");
+
+        thresholds = Thresholds({
+            approvalThresholdBps: approvalThresholdBps,
+            quorumMin: quorumMin,
+            quorumMax: quorumMax,
+            feeBps: feeBps,
+            slashBpsMax: slashBpsMax
+        });
+        _thresholdsConfigured = true;
+        emit ThresholdsUpdated(thresholds);
     }
 }

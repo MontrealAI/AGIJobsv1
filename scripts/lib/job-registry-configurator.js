@@ -39,6 +39,7 @@ function createDefaultArgs() {
     variant: null,
     planOutPath: null,
     help: false,
+    atomic: false,
     modules: cloneKeys(MODULE_KEYS),
     timings: cloneKeys(TIMING_KEYS),
     thresholds: cloneKeys(THRESHOLD_KEYS),
@@ -110,6 +111,11 @@ function parseConfiguratorArgs(argv) {
 
     if (key === 'variant') {
       args.variant = value;
+      continue;
+    }
+
+    if (key === 'atomic' || key === 'single-transaction') {
+      args.atomic = parseBooleanFlag(value, true);
       continue;
     }
 

@@ -43,6 +43,7 @@ function printHelp() {
   console.log('  --modules.<key> <addr>  Prefill module override (identity, staking, validation, dispute, reputation, feePool)');
   console.log('  --timings.<key> <secs>  Prefill timing override (commitWindow, revealWindow, disputeWindow)');
   console.log('  --thresholds.<key> <v>  Prefill threshold override (approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax)');
+  console.log('  --atomic[=true|false]   Use setFullConfiguration for a single transaction when executing');
   console.log('  --help                  Show this message and exit');
   console.log('');
   console.log('During interactive runs the wizard prints the current JobRegistry configuration,');
@@ -426,6 +427,7 @@ module.exports = async function (callback) {
         timings: currentTimings,
         thresholds: currentThresholds,
       },
+      preferAtomic: Boolean(options.atomic),
     });
 
     const anyChanges =
@@ -488,29 +490,39 @@ module.exports = async function (callback) {
     }
 
     const receipts = [];
-    if (plans.modulesPlan && plans.modulesPlan.changed) {
-      const receipt = await jobRegistry.setModules(plans.modulesPlan.desired, { from: senderChecksum });
-      receipts.push({ method: 'setModules', hash: receipt.tx });
-    }
-    if (plans.timingsPlan && plans.timingsPlan.changed) {
-      const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
-      const receipt = await jobRegistry.setTimings(commitWindow, revealWindow, disputeWindow, {
-        from: senderChecksum,
-      });
-      receipts.push({ method: 'setTimings', hash: receipt.tx });
-    }
-    if (plans.thresholdsPlan && plans.thresholdsPlan.changed) {
-      const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
-        plans.thresholdsPlan.desired;
-      const receipt = await jobRegistry.setThresholds(
-        approvalThresholdBps,
-        quorumMin,
-        quorumMax,
-        feeBps,
-        slashBpsMax,
+    if (plans.atomicPlan && plans.atomicPlan.changed) {
+      const receipt = await jobRegistry.setFullConfiguration(
+        plans.atomicPlan.desired.modules,
+        plans.atomicPlan.desired.timings,
+        plans.atomicPlan.desired.thresholds,
         { from: senderChecksum }
       );
-      receipts.push({ method: 'setThresholds', hash: receipt.tx });
+      receipts.push({ method: 'setFullConfiguration', hash: receipt.tx });
+    } else {
+      if (plans.modulesPlan && plans.modulesPlan.changed) {
+        const receipt = await jobRegistry.setModules(plans.modulesPlan.desired, { from: senderChecksum });
+        receipts.push({ method: 'setModules', hash: receipt.tx });
+      }
+      if (plans.timingsPlan && plans.timingsPlan.changed) {
+        const { commitWindow, revealWindow, disputeWindow } = plans.timingsPlan.desired;
+        const receipt = await jobRegistry.setTimings(commitWindow, revealWindow, disputeWindow, {
+          from: senderChecksum,
+        });
+        receipts.push({ method: 'setTimings', hash: receipt.tx });
+      }
+      if (plans.thresholdsPlan && plans.thresholdsPlan.changed) {
+        const { approvalThresholdBps, quorumMin, quorumMax, feeBps, slashBpsMax } =
+          plans.thresholdsPlan.desired;
+        const receipt = await jobRegistry.setThresholds(
+          approvalThresholdBps,
+          quorumMin,
+          quorumMax,
+          feeBps,
+          slashBpsMax,
+          { from: senderChecksum }
+        );
+        receipts.push({ method: 'setThresholds', hash: receipt.tx });
+      }
     }
 
     console.log('Transactions broadcast successfully:');

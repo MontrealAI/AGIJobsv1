@@ -111,4 +111,5 @@ resulting JSON without persisting changes when running audits or experiments.
   through to owner workflows automatically.
 - Hardhat operators can call `npx hardhat job-registry:set-config --network <network> --timings '{"commitWindow":3600}'`
   or `npx hardhat job-registry:update-config --thresholds '{"feeBps":275}'` to apply the validated parameters on-chain
-  with plan exports and owner enforcement without leaving the Hardhat environment.
+  with plan exports and owner enforcement without leaving the Hardhat environment. Append `--atomic` to the set-config command
+  when broadcasting to rely on a single `setFullConfiguration` call instead of three sequential transactions.
