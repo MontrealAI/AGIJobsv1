@@ -15,6 +15,15 @@ All notable changes to this project will be documented in this file.
   sequential broadcast support for multi-step updates.
 - Hardhat emergency management tasks (`identity-registry:emergency-status` / `identity-registry:set-emergency`) that surface
   allow-list drift, generate multisig payloads, and enforce owner-only execution before broadcasting.
+- Hardhat `dispute-module:*` task suite for registry wiring, pause management, and Safe-ready plan exports with owner
+  enforcement.
+- Hardhat `validation-module:*` tooling that normalizes rule identifiers (including file-based inputs), generates Safe-ready
+  payloads, and blocks no-op broadcasts unless `--force` is supplied.
+
+### Fixed
+
+- Ensure Hardhat eagerly loads the IdentityRegistry task definitions so the documented `identity-registry:*` CLI commands work
+  without requiring manual imports in downstream scripts.
 
 ## [1.1.0] - 2025-02-21
 

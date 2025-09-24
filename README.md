@@ -142,7 +142,7 @@ Edit configuration files under `config/` to match the deployment environment:
 ### IdentityRegistry Hardhat tasks
 
 - `npx hardhat identity-registry:status --network <network>` prints the on-chain ENS configuration, automatically compares it
-  against the repository config profile (or an explicit `--config` path), and highlights any drift together with optional
+  against the repository config profile (or an explicit `--config-path` flag), and highlights any drift together with optional
   override previews such as `--overrides '{"alphaEnabled":true}'`.
 - `npx hardhat identity-registry:set-config --network <network> --execute --from 0xOwner` aligns the ENS wiring with
   repository defaults and overrides, writes optional Safe-ready JSON plans via `--plan-out`, enforces owner checks before
@@ -179,6 +179,29 @@ Edit configuration files under `config/` to match the deployment environment:
   dry runs that confirm the current state and emit calldata plans before any transaction is sent.
 - `npx hardhat stake-manager:emergency-release --network <network> --account 0xWorker --amount <raw>` helps governance unlock
   specific worker balances with Safe-ready summaries and optional live broadcasts via `--execute --from 0xOwner`.
+
+### DisputeModule Hardhat tasks
+
+- `npx hardhat dispute-module:status --network <network>` surfaces the current owner, authorized JobRegistry, and pause state
+  as either console output or machine-readable JSON when `--json` is supplied.
+- `npx hardhat dispute-module:set-registry --network <network> --registry 0xRegistry` plans the initial registry wiring with a
+  Safe-ready payload (`--plan-out ./plan.json`) and enforces owner checks before allowing a broadcast via `--execute --from
+  0xOwner`.
+- `npx hardhat dispute-module:update-registry --network <network> --registry 0xNew --execute --from 0xOwner` validates that the
+  module is paused, highlights the previous/next registry, and emits a Safe-ready summary before calling
+  `updateJobRegistry`.
+- `npx hardhat dispute-module:pause --network <network>` and `npx hardhat dispute-module:unpause --network <network>` default
+  to dry runs that include encoded calldata, optional plan exports, and guardrails that avoid reverting when the module is
+  already in the desired state.
+
+### ValidationModule Hardhat tasks
+
+- `npx hardhat validation-module:status --network <network> --rules 'ruleA,ruleB'` reports the owner and the enabled state of
+  specific rules. Provide `--rules @./rules.json` or a JSON array (`--rules '["agents","jobs"]'`) to load identifiers from a
+  file or automation pipeline.
+- `npx hardhat validation-module:set-rule --network <network> --rule agents --enabled true` produces a Safe-ready plan with
+  current/next state metadata. Append `--plan-out ./plan.json` to export the payload, `--execute --from 0xOwner` to broadcast,
+  and `--force` when you need to emit calldata even if the rule already matches the requested state.
 
 ### IdentityRegistry ENS console
 

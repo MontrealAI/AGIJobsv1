@@ -4,6 +4,9 @@ require('solidity-coverage');
 require('./tasks/jobRegistry');
 require('./tasks/feePool');
 require('./tasks/stakeManager');
+require('./tasks/identityRegistry');
+require('./tasks/disputeModule');
+require('./tasks/validationModule');
 
 const { MNEMONIC, RPC_SEPOLIA, RPC_MAINNET } = process.env;
 

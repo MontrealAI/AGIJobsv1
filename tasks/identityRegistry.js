@@ -117,7 +117,7 @@ function resolveVariantWithWarning(candidate) {
 
 task('identity-registry:status', 'Inspect IdentityRegistry ENS configuration and optional drift against config files')
   .addOptionalParam('identity', 'IdentityRegistry contract address', undefined, types.string)
-  .addOptionalParam('config', 'Explicit ENS config file path', undefined, types.string)
+  .addOptionalParam('configPath', 'Explicit ENS config file path', undefined, types.string)
   .addOptionalParam('variant', 'Config variant hint (mainnet, sepolia, dev)', undefined, types.string)
   .addOptionalParam(
     'overrides',
@@ -134,7 +134,8 @@ task('identity-registry:status', 'Inspect IdentityRegistry ENS configuration and
     const networkName = hre.network && hre.network.name ? hre.network.name : '(unspecified)';
     const variantHint = args.variant || networkName || undefined;
     const resolvedVariant = resolveVariantWithWarning(variantHint);
-    const variantForConfig = args.config ? null : resolvedVariant || args.variant || networkName || undefined;
+    const explicitConfigPath = args.configPath || null;
+    const variantForConfig = explicitConfigPath ? null : resolvedVariant || args.variant || networkName || undefined;
 
     console.log('AGIJobsv1 — IdentityRegistry Hardhat console');
     console.log('Action: status');
@@ -150,8 +151,8 @@ task('identity-registry:status', 'Inspect IdentityRegistry ENS configuration and
 
     try {
       const configProfile = loadEnsConfig({
-        explicitPath: args.config,
-        variant: args.config ? undefined : variantForConfig,
+        explicitPath: explicitConfigPath,
+        variant: explicitConfigPath ? undefined : variantForConfig,
       });
       console.log(`Config file: ${configProfile.path}`);
       const plan = buildSetPlan({ current, baseConfig: configProfile.values, overrides });
@@ -170,7 +171,7 @@ task('identity-registry:status', 'Inspect IdentityRegistry ENS configuration and
 task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration with repository defaults and optional overrides')
   .addOptionalParam('identity', 'IdentityRegistry contract address', undefined, types.string)
   .addOptionalParam('from', 'Sender address (defaults to first unlocked account)', undefined, types.string)
-  .addOptionalParam('config', 'Explicit ENS config file path', undefined, types.string)
+  .addOptionalParam('configPath', 'Explicit ENS config file path', undefined, types.string)
   .addOptionalParam('variant', 'Config variant hint (mainnet, sepolia, dev)', undefined, types.string)
   .addOptionalParam(
     'overrides',
@@ -190,7 +191,8 @@ task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration w
     const networkName = hre.network && hre.network.name ? hre.network.name : '(unspecified)';
     const variantHint = args.variant || networkName || undefined;
     const resolvedVariant = resolveVariantWithWarning(variantHint);
-    const variantForConfig = args.config ? null : resolvedVariant || args.variant || networkName || undefined;
+    const explicitConfigPath = args.configPath || null;
+    const variantForConfig = explicitConfigPath ? null : resolvedVariant || args.variant || networkName || undefined;
 
     console.log('AGIJobsv1 — IdentityRegistry Hardhat console');
     console.log('Action: set-config');
@@ -208,8 +210,8 @@ task('identity-registry:set-config', 'Align IdentityRegistry ENS configuration w
     let configProfile;
     try {
       configProfile = loadEnsConfig({
-        explicitPath: args.config,
-        variant: args.config ? undefined : variantForConfig,
+        explicitPath: explicitConfigPath,
+        variant: explicitConfigPath ? undefined : variantForConfig,
       });
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
