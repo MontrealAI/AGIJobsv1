@@ -16,6 +16,11 @@ contract IdentityRegistry is Ownable {
         bytes32 alphaClubRootHash,
         bool alphaEnabled
     );
+    event EnsRegistryUpdated(address indexed registry);
+    event EnsNameWrapperUpdated(address indexed wrapper);
+    event AgentRootHashUpdated(bytes32 agentRootHash);
+    event ClubRootHashUpdated(bytes32 clubRootHash);
+    event AlphaClubConfigured(bytes32 alphaClubRootHash, bool enabled);
     event AlphaAgentConfigured(bytes32 alphaAgentRootHash, bool enabled);
     event EmergencyAccessUpdated(address indexed account, bool allowed);
 
@@ -68,6 +73,50 @@ contract IdentityRegistry is Ownable {
         _setAlphaAgentRoot(_deriveAlphaAgentRoot(agentHash), true);
 
         emit EnsConfigured(registry, wrapper, agentHash, clubHash, alphaClubHash, alphaClubEnabled);
+    }
+
+    /// @notice Updates the ENS registry address.
+    /// @param registry Address of the ENS registry used for verification.
+    function setEnsRegistry(address registry) external onlyOwner {
+        require(registry != address(0), "IdentityRegistry: registry");
+        ensRegistry = registry;
+        emit EnsRegistryUpdated(registry);
+    }
+
+    /// @notice Updates the ENS name wrapper address.
+    /// @param wrapper Address of the ENS NameWrapper used for wrapped ownership checks.
+    function setEnsNameWrapper(address wrapper) external onlyOwner {
+        ensNameWrapper = wrapper;
+        emit EnsNameWrapperUpdated(wrapper);
+    }
+
+    /// @notice Updates the authorized agent ENS root hash.
+    /// @param agentHash Node hash representing the authorized agent subdomain.
+    function setAgentRootHash(bytes32 agentHash) external onlyOwner {
+        require(agentHash != bytes32(0), "IdentityRegistry: agent hash");
+        agentRootHash = agentHash;
+        _setAlphaAgentRoot(_deriveAlphaAgentRoot(agentHash), true);
+        emit AgentRootHashUpdated(agentHash);
+    }
+
+    /// @notice Updates the authorized club ENS root hash.
+    /// @param clubHash Node hash representing the authorized club subdomain.
+    function setClubRootHash(bytes32 clubHash) external onlyOwner {
+        require(clubHash != bytes32(0), "IdentityRegistry: club hash");
+        clubRootHash = clubHash;
+        emit ClubRootHashUpdated(clubHash);
+    }
+
+    /// @notice Updates the alpha club ENS root configuration and toggle.
+    /// @param alphaClubHash Node hash representing the alpha club subdomain.
+    /// @param enabled Boolean flag to allow alpha root based identities.
+    function setAlphaClubRoot(bytes32 alphaClubHash, bool enabled) external onlyOwner {
+        if (enabled) {
+            require(alphaClubHash != bytes32(0), "IdentityRegistry: alpha hash");
+        }
+        alphaClubRootHash = alphaClubHash;
+        alphaEnabled = enabled;
+        emit AlphaClubConfigured(alphaClubHash, enabled);
     }
 
     /// @notice Updates the alpha agent namespace equivalence.
