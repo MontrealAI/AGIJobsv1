@@ -108,6 +108,7 @@ contract IdentityRegistry is Ownable {
     function setClubRootHash(bytes32 clubHash) external onlyOwner {
         require(clubHash != bytes32(0), "IdentityRegistry: club hash");
         clubRootHash = clubHash;
+        _syncAlphaClubRoot(clubHash);
         emit ClubRootHashUpdated(clubHash);
     }
 
@@ -274,6 +275,21 @@ contract IdentityRegistry is Ownable {
         alphaAgentRootHash = alphaAgentHash;
         alphaAgentEnabled = enabled;
         emit AlphaAgentConfigured(alphaAgentHash, enabled);
+    }
+
+    function _syncAlphaClubRoot(bytes32 clubHash) private {
+        bytes32 currentAlpha = alphaClubRootHash;
+        if (currentAlpha == bytes32(0)) {
+            return;
+        }
+
+        bytes32 derivedAlpha = _deriveAlphaClubRoot(clubHash);
+        if (derivedAlpha == currentAlpha) {
+            return;
+        }
+
+        alphaClubRootHash = derivedAlpha;
+        emit AlphaClubConfigured(derivedAlpha, alphaEnabled);
     }
 
     function _ownsNode(address account, bytes32 node) private view returns (bool) {
