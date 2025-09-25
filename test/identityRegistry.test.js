@@ -234,6 +234,28 @@ contract('IdentityRegistry', (accounts) => {
     );
   });
 
+  it('keeps the alpha club alias synchronized when updating the club root', async function () {
+    const agent = web3.utils.keccak256('agent-root');
+    const club = web3.utils.keccak256('club-root');
+    const alphaLabel = web3.utils.keccak256('alpha');
+    const alphaClub = web3.utils.soliditySha3(
+      { type: 'bytes32', value: club },
+      { type: 'bytes32', value: alphaLabel }
+    );
+    const updatedClub = web3.utils.keccak256('updated-club-root');
+    const updatedAlphaClub = web3.utils.soliditySha3(
+      { type: 'bytes32', value: updatedClub },
+      { type: 'bytes32', value: alphaLabel }
+    );
+
+    await this.registry.configureEns(stranger, worker, agent, club, alphaClub, true, { from: owner });
+
+    await this.registry.setClubRootHash(updatedClub, { from: owner });
+    assert.strictEqual(await this.registry.clubRootHash(), updatedClub);
+    assert.strictEqual(await this.registry.alphaClubRootHash(), updatedAlphaClub);
+    assert.isTrue(await this.registry.alphaEnabled());
+  });
+
   it('allows the owner to configure the alpha club root and toggle', async function () {
     const agent = web3.utils.keccak256('agent-root');
     const club = web3.utils.keccak256('club-root');
