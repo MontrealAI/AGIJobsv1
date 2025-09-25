@@ -32,6 +32,7 @@
     "namehash:dev": "node scripts/compute-namehash.js dev",
     "namehash:mainnet": "node scripts/compute-namehash.js mainnet",
     "config:validate": "node scripts/validate-config.js",
+    "deploy:checklist": "node scripts/deployment/mainnet-checklist.js",
     "config:params": "node scripts/edit-params.js",
     "config:profiles": "node scripts/config-profile-manager.js",
     "identity:console": "npx truffle exec scripts/identity-registry-console.js --network ${NETWORK:-development}",

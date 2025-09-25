@@ -13,6 +13,7 @@ npm run test
 npm run coverage
 npm run config:validate
 npm run diagnose
+npm run deploy:checklist
 ```
 
 `npm run coverage` enforces a 90% minimum threshold across lines, branches, and functions to match our CI gate. When the CI workflow has access to the repository `CODECOV_TOKEN` secret (for pushes and internal branches), it uploads `coverage/lcov.info` to Codecov so the badge above reflects the latest main-branch run automatically, even for private mirrors; forked pull requests skip the upload without failing the build.
@@ -24,6 +25,7 @@ npm run diagnose
 - [AGI Jobs v1 Master Plan](docs/MasterPlanv1.md) — executive framing for non-technical stakeholders.
 - [Parameter management guide](docs/parameter-management.md) — lifecycle for updating commit/reveal and governance thresholds.
 - [Mainnet deployment simulation](docs/mainnet-deployment-simulation.md) — dry-run transcript covering production readiness.
+- [Mainnet deployment playbook (Truffle)](docs/deployment/mainnet-truffle-playbook.md) — checklist-driven steps for non-technical teams to deploy on Ethereum mainnet.
 
 ### Agent gateway commit/reveal workflow
 
